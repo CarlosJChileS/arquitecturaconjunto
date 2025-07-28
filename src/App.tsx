@@ -6,7 +6,6 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import AdminProtectedRoute from "@/components/AdminProtectedRoute";
 import Index from "./pages/Index";
 import Courses from "./pages/Courses";
 import CourseDetail from "./pages/CourseDetail";
@@ -74,38 +73,11 @@ const App = () => (
               />
               <Route path="/admin/login" element={<AdminLogin />} />
               <Route path="/admin-login" element={<AdminLogin />} />
-              <Route 
-                path="/admin" 
-                element={
-                  <AdminProtectedRoute>
-                    <AdminDashboard />
-                  </AdminProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/admin/dashboard" 
-                element={
-                  <AdminProtectedRoute>
-                    <AdminDashboard />
-                  </AdminProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/admin/courses/:id" 
-                element={
-                  <AdminProtectedRoute>
-                    <AdminCourseEditor />
-                  </AdminProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/admin/users" 
-                element={
-                  <AdminProtectedRoute>
-                    <AdminUsers />
-                  </AdminProtectedRoute>
-                } 
-              />
+              <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/admin-dashboard" element={<AdminDashboard />} />
+              <Route path="/admin/dashboard" element={<AdminDashboard />} />
+              <Route path="/admin/courses/:id" element={<AdminCourseEditor />} />
+              <Route path="/admin/users" element={<AdminUsers />} />
               <Route 
                 path="/exam/:examId" 
                 element={
