@@ -16,15 +16,29 @@ const Login = () => {
   const [error, setError] = useState("");
   const navigate = useNavigate();
   const location = useLocation();
-  const { signIn, user } = useAuth();
+  const { signIn, user, profile, loading } = useAuth();
 
   const from = location.state?.from?.pathname || "/dashboard";
 
   useEffect(() => {
-    if (user) {
-      navigate(from, { replace: true });
+    console.log('Login useEffect - User:', user?.email, 'Profile:', profile?.role, 'Loading:', loading);
+    
+    if (user && profile && !loading) {
+      // Redirigir según el rol del usuario
+      console.log('Redirecting user with role:', profile.role);
+      
+      if (profile.role === 'admin') {
+        console.log('Redirecting to admin dashboard');
+        navigate("/admin", { replace: true });
+      } else if (profile.role === 'instructor') {
+        console.log('Redirecting to instructor dashboard');
+        navigate("/instructor", { replace: true });
+      } else {
+        console.log('Redirecting to default dashboard');
+        navigate(from, { replace: true });
+      }
     }
-  }, [user, navigate, from]);
+  }, [user, profile, loading, navigate, from]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,9 +50,8 @@ const Login = () => {
 
       if (error) {
         setError(error.message);
-      } else {
-        navigate(from, { replace: true });
       }
+      // La redirección se maneja en el useEffect cuando se actualiza el profile
     } catch (err) {
       setError("Error al iniciar sesión. Inténtalo de nuevo.");
     } finally {

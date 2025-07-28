@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Eye, EyeOff, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 
 const AdminLogin = () => {
   const [email, setEmail] = useState("");
@@ -14,39 +15,54 @@ const AdminLogin = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { signIn, user, profile, loading } = useAuth();
+
+  useEffect(() => {
+    console.log('AdminLogin useEffect - User:', user?.email, 'Profile:', profile?.role, 'Loading:', loading);
+    
+    // Si ya está logueado como admin, redirigir
+    if (user && profile?.role === 'admin') {
+      console.log('Already logged in as admin, redirecting');
+      navigate("/admin", { replace: true });
+    } else if (user && profile && profile.role !== 'admin') {
+      console.log('User logged in but not admin, role:', profile.role);
+      toast({
+        title: "Acceso denegado",
+        description: "No tienes permisos de administrador",
+        variant: "destructive"
+      });
+    }
+  }, [user, profile, loading, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Simulate admin login (sin backend por ahora)
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    if (email === "admin@learnpro.com" && password === "admin123") {
+    try {
+      const { error } = await signIn(email, password);
+
+      if (error) {
+        toast({
+          title: "Acceso denegado",
+          description: error.message || "Credenciales incorrectas",
+          variant: "destructive"
+        });
+      } else {
+        // El useEffect se encargará de la redirección cuando se cargue el perfil
+        toast({
+          title: "Acceso autorizado",
+          description: "Verificando permisos de administrador..."
+        });
+      }
+    } catch (err) {
       toast({
-        title: "Acceso autorizado",
-        description: "Bienvenido al panel de administración"
-      });
-      
-      // Simular token de admin en localStorage
-      localStorage.setItem("adminToken", "admin-demo-token");
-      localStorage.setItem("adminUser", JSON.stringify({
-        id: "admin-1",
-        name: "Administrador",
-        email: "admin@learnpro.com",
-        role: "admin"
-      }));
-      
-      navigate("/admin/dashboard");
-    } else {
-      toast({
-        title: "Acceso denegado",
-        description: "Credenciales incorrectas. Usa: admin@learnpro.com / admin123",
+        title: "Error",
+        description: "Error al iniciar sesión. Inténtalo de nuevo.",
         variant: "destructive"
       });
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
   };
 
   return (

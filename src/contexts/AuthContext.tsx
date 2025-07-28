@@ -68,6 +68,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchProfile = async (userId: string) => {
     try {
+      console.log('Fetching profile for userId:', userId);
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -76,12 +77,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) {
         console.error('Error fetching profile:', error);
+        // Si no existe el perfil, crear uno por defecto
+        if (error.code === 'PGRST116') {
+          console.log('Profile not found, creating default profile');
+          const { data: userData } = await supabase.auth.getUser();
+          const userEmail = userData?.user?.email;
+          
+          const { data: newProfile, error: createError } = await supabase
+            .from('profiles')
+            .insert({
+              user_id: userId,
+              full_name: userEmail?.split('@')[0] || 'Usuario',
+              role: 'student',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .select()
+            .single();
+            
+          if (createError) {
+            console.error('Error creating profile:', createError);
+            return;
+          }
+          
+          setProfile(newProfile as Profile);
+          console.log('Profile created:', newProfile);
+        }
         return;
       }
 
       // Type assertion to ensure role matches our UserRole type
       const profileData = data as Profile;
       setProfile(profileData);
+      console.log('Profile loaded:', profileData);
     } catch (error) {
       console.error('Error fetching profile:', error);
     }
@@ -137,15 +165,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('Auth state changed:', event, session?.user?.email);
         setSession(session);
         setUser(session?.user ?? null);
         
         if (session?.user) {
           // Fetch profile and subscription data after authentication
-          setTimeout(() => {
-            fetchProfile(session.user.id);
-            fetchSubscription(session.user.id);
-          }, 0);
+          console.log('Fetching profile for user:', session.user.id);
+          await fetchProfile(session.user.id);
+          await fetchSubscription(session.user.id);
         } else {
           setProfile(null);
           setSubscription(null);
@@ -156,14 +184,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
 
     // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      console.log('Existing session check:', session?.user?.email);
       setSession(session);
       setUser(session?.user ?? null);
       
       if (session?.user) {
-        setTimeout(() => {
-          fetchProfile(session.user.id);
-        }, 0);
+        console.log('Loading profile for existing session:', session.user.id);
+        await fetchProfile(session.user.id);
+        await fetchSubscription(session.user.id);
       }
       
       setLoading(false);
