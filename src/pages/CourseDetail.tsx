@@ -42,8 +42,7 @@ interface Course {
   instructor_avatar: string;
   category: string;
   level: 'beginner' | 'intermediate' | 'advanced';
-  price: number;
-  discounted_price?: number;
+  subscription_tier: 'free' | 'basic' | 'premium';
   duration_hours: number;
   total_lessons: number;
   total_students: number;
@@ -72,7 +71,7 @@ interface Enrollment {
 const CourseDetail: React.FC = () => {
   const { courseId } = useParams<{ courseId: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, hasActiveSubscription, subscription } = useAuth();
   
   const [course, setCourse] = useState<Course | null>(null);
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
@@ -112,8 +111,7 @@ const CourseDetail: React.FC = () => {
           instructor_avatar: '/placeholder.svg',
           category: 'Desarrollo Web',
           level: 'intermediate',
-          price: 99.99,
-          discounted_price: 79.99,
+          subscription_tier: 'premium',
           duration_hours: 45,
           total_lessons: 156,
           total_students: 2847,
@@ -245,19 +243,66 @@ const CourseDetail: React.FC = () => {
       return;
     }
 
+    if (!course) return;
+
     try {
       setIsEnrolling(true);
-      const result = await enrollCourse(courseId!);
-      
-      if (result.data) {
-        setEnrollment(result.data);
-        // Redirect to first lesson or course content
-        navigate(`/lesson/${course?.modules[0]?.lessons[0]?.id}`);
+
+      // If it's a free course, enroll directly
+      if (course.subscription_tier === 'free') {
+        const result = await enrollCourse(courseId!);
+        if (result.data) {
+          setEnrollment(result.data);
+        }
+      } else {
+        // Check if user has required subscription
+        const userSubscriptionTier = subscription?.subscription_tier || 'free';
+        if (canAccessCourse(course.subscription_tier, userSubscriptionTier)) {
+          const result = await enrollCourse(courseId!);
+          if (result.data) {
+            setEnrollment(result.data);
+          }
+        } else {
+          // Redirect to subscription page
+          navigate('/subscription');
+        }
       }
     } catch (error) {
       console.error('Error enrolling in course:', error);
     } finally {
       setIsEnrolling(false);
+    }
+  };
+
+  const canAccessCourse = (courseSubscriptionTier: string, userSubscriptionTier: string) => {
+    const tierHierarchy = { free: 0, basic: 1, premium: 2 };
+    return tierHierarchy[userSubscriptionTier as keyof typeof tierHierarchy] >= 
+           tierHierarchy[courseSubscriptionTier as keyof typeof tierHierarchy];
+  };
+
+  const getSubscriptionTierColor = (tier: string) => {
+    switch (tier) {
+      case 'free':
+        return 'bg-gray-100 text-gray-800';
+      case 'basic':
+        return 'bg-blue-100 text-blue-800';
+      case 'premium':
+        return 'bg-purple-100 text-purple-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getSubscriptionTierText = (tier: string) => {
+    switch (tier) {
+      case 'free':
+        return 'Gratis';
+      case 'basic':
+        return 'Basic';
+      case 'premium':
+        return 'Premium';
+      default:
+        return tier;
     }
   };
 
@@ -388,7 +433,7 @@ const CourseDetail: React.FC = () => {
                         src={course.trailer_url}
                         title={`Tráiler del curso: ${course.title}`}
                         className="w-full h-full rounded-lg"
-                        frameBorder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                         allowFullScreen
                       />
                     ) : (
@@ -424,19 +469,17 @@ const CourseDetail: React.FC = () => {
                   ) : (
                     <div className="space-y-4">
                       <div className="text-center">
-                        {course.discounted_price ? (
-                          <div>
-                            <span className="text-2xl font-bold text-green-600">
-                              ${course.discounted_price}
-                            </span>
-                            <span className="text-lg text-gray-500 line-through ml-2">
-                              ${course.price}
-                            </span>
-                          </div>
+                        <div className="mb-3">
+                          <Badge className={getSubscriptionTierColor(course.subscription_tier)}>
+                            {getSubscriptionTierText(course.subscription_tier)}
+                          </Badge>
+                        </div>
+                        {course.subscription_tier === 'free' ? (
+                          <p className="text-green-600 font-medium">¡Curso totalmente gratuito!</p>
                         ) : (
-                          <span className="text-2xl font-bold">
-                            {course.price === 0 ? 'Gratis' : `$${course.price}`}
-                          </span>
+                          <p className="text-gray-600">
+                            Requiere suscripción {getSubscriptionTierText(course.subscription_tier)}
+                          </p>
                         )}
                       </div>
 
@@ -446,7 +489,12 @@ const CourseDetail: React.FC = () => {
                         className="w-full"
                         size="lg"
                       >
-                        {isEnrolling ? 'Inscribiendo...' : 'Inscribirse Ahora'}
+                        {(() => {
+                          if (isEnrolling) return 'Procesando...';
+                          if (course.subscription_tier === 'free') return 'Inscribirse Gratis';
+                          if (hasActiveSubscription) return 'Acceder al Curso';
+                          return 'Suscribirse para Acceder';
+                        })()}
                       </Button>
 
                       <div className="text-xs text-gray-500 text-center">

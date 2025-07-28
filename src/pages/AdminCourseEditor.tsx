@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Save, X, Upload, Video, FileText, Users, Clock, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Save, X, Upload, Video, FileText, Users, Clock, Plus, Trash2, Image, BookOpen, CheckCircle, Eye, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,571 +8,846 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-
-interface Module {
-  id: string;
-  title: string;
-  lessons: Lesson[];
-}
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Lesson {
   id: string;
   title: string;
-  duration: string;
-  type: 'video' | 'text' | 'quiz';
+  description: string;
+  duration_minutes: number;
+  type: 'video' | 'text' | 'quiz' | 'assignment';
+  video_url?: string;
+  content?: string;
+  is_free: boolean;
+  resources: Resource[];
+  quiz_questions?: QuizQuestion[];
 }
+
+interface Resource {
+  id: string;
+  title: string;
+  type: 'pdf' | 'link' | 'file';
+  url: string;
+}
+
+interface QuizQuestion {
+  id: string;
+  question: string;
+  type: 'multiple_choice' | 'true_false' | 'short_answer';
+  options?: string[];
+  correct_answer: string;
+  explanation?: string;
+}
+
+interface Module {
+  id: string;
+  title: string;
+  description: string;
+  order_index: number;
+  lessons: Lesson[];
+}
+
+interface CourseData {
+  title: string;
+  description: string;
+  long_description: string;
+  thumbnail_url: string;
+  trailer_url: string;
+  instructor_id: string;
+  category: string;
+  level: 'beginner' | 'intermediate' | 'advanced';
+  subscription_tier: 'free' | 'basic' | 'premium';
+  duration_hours: number;
+  language: string;
+  published: boolean;
+  featured: boolean;
+  prerequisites: string[];
+  objectives: string[];
+  target_audience: string[];
+  modules: Module[];
+  tags: string[];
+  what_you_learn: string[];
+  requirements: string[];
+  course_features: string[];
+}
+
+const CATEGORIES = [
+  "Desarrollo Web", "Programación", "Data Science", "Machine Learning", 
+  "Diseño", "Marketing Digital", "Negocios", "Fotografía", "Música", 
+  "Idiomas", "Salud y Fitness", "Desarrollo Personal"
+];
+
+const LANGUAGES = [
+  "Español", "Inglés", "Portugués", "Francés", "Alemán", "Italiano"
+];
+
+const COURSE_FEATURES = [
+  "Videos en HD", "Acceso de por vida", "Certificado de finalización", 
+  "Recursos descargables", "Soporte del instructor", "Acceso móvil",
+  "Subtítulos", "Ejercicios prácticos", "Proyectos finales", "Comunidad de estudiantes"
+];
 
 const AdminCourseEditor = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user, profile } = useAuth();
   const isEdit = id !== "new";
 
-  const [courseData, setCourseData] = useState({
-    title: isEdit ? "React Avanzado" : "",
-    description: isEdit ? "Domina React con hooks, context, suspense y las mejores prácticas de desarrollo." : "",
-    image: "",
-    instructor: isEdit ? "Carlos Rodríguez" : "",
-    category: isEdit ? "Frontend" : "",
-    level: isEdit ? "Avanzado" : "",
-    duration: isEdit ? "15 horas" : "",
-    price: isEdit ? "0" : "0", // Todos incluidos en suscripción
-    published: isEdit ? true : false,
-    featured: isEdit ? false : false,
-    prerequisites: isEdit ? ["Conocimientos básicos de JavaScript", "Experiencia con HTML/CSS"] : [],
-    objectives: isEdit ? [
-      "Dominar React Hooks avanzados",
-      "Implementar Context API eficientemente", 
-      "Crear aplicaciones escalables"
-    ] : []
+  const [currentStep, setCurrentStep] = useState(0);
+  const [previewMode, setPreviewMode] = useState(false);
+
+  const [courseData, setCourseData] = useState<CourseData>({
+    title: "",
+    description: "",
+    long_description: "",
+    thumbnail_url: "",
+    trailer_url: "",
+    instructor_id: user?.id || "",
+    category: "",
+    level: "beginner",
+    subscription_tier: "basic",
+    duration_hours: 0,
+    language: "Español",
+    published: false,
+    featured: false,
+    prerequisites: [],
+    objectives: [],
+    target_audience: [],
+    modules: [],
+    tags: [],
+    what_you_learn: [],
+    requirements: [],
+    course_features: []
   });
 
-  const [modules, setModules] = useState<Module[]>(
-    isEdit ? [
-      {
-        id: "1",
-        title: "Introducción a React Avanzado",
-        lessons: [
-          { id: "1", title: "Hooks avanzados", duration: "25m", type: "video" },
-          { id: "2", title: "Custom Hooks", duration: "30m", type: "video" },
-          { id: "3", title: "Ejercicios prácticos", duration: "20m", type: "text" }
-        ]
-      },
-      {
-        id: "2", 
-        title: "Context API y Estado Global",
-        lessons: [
-          { id: "4", title: "Context API básico", duration: "20m", type: "video" },
-          { id: "5", title: "Optimización de renders", duration: "35m", type: "video" }
-        ]
-      }
-    ] : []
-  );
+  const [newItem, setNewItem] = useState({
+    prerequisite: "",
+    objective: "",
+    audience: "",
+    tag: "",
+    learning: "",
+    requirement: ""
+  });
 
-  const [newPrerequisite, setNewPrerequisite] = useState("");
-  const [newObjective, setNewObjective] = useState("");
+  const steps = [
+    { id: 0, title: "Información Básica", icon: BookOpen },
+    { id: 1, title: "Contenido del Curso", icon: Video },
+    { id: 2, title: "Configuración", icon: Settings },
+    { id: 3, title: "Previsualización", icon: Eye }
+  ];
 
-  const handleSave = () => {
-    toast({
-      title: isEdit ? "Curso actualizado" : "Curso creado",
-      description: `El curso "${courseData.title}" ha sido ${isEdit ? "actualizado" : "creado"} exitosamente.`
-    });
-    navigate("/admin/dashboard");
+  useEffect(() => {
+    if (isEdit) {
+      loadCourseData();
+    }
+  }, [id]);
+
+  const loadCourseData = async () => {
+    if (isEdit) {
+      setCourseData({
+        title: "Desarrollo Web Full Stack Avanzado",
+        description: "Aprende a crear aplicaciones web completas con React, Node.js y bases de datos",
+        long_description: "Este curso completo te llevará desde los fundamentos hasta nivel avanzado en desarrollo web full stack.",
+        thumbnail_url: "/placeholder.svg",
+        trailer_url: "",
+        instructor_id: user?.id || "",
+        category: "Desarrollo Web",
+        level: "intermediate",
+        subscription_tier: "premium",
+        duration_hours: 45,
+        language: "Español",
+        published: false,
+        featured: false,
+        prerequisites: ["Conocimientos básicos de HTML y CSS", "Fundamentos de JavaScript"],
+        objectives: ["Crear aplicaciones web completas", "Dominar React y Node.js", "Implementar bases de datos"],
+        target_audience: ["Desarrolladores junior", "Estudiantes de programación"],
+        modules: [
+          {
+            id: "1",
+            title: "Fundamentos de React",
+            description: "Aprende los conceptos básicos de React",
+            order_index: 1,
+            lessons: [
+              {
+                id: "1",
+                title: "Introducción a React",
+                description: "Conceptos básicos y configuración del entorno",
+                duration_minutes: 30,
+                type: "video",
+                is_free: true,
+                resources: []
+              }
+            ]
+          }
+        ],
+        tags: ["React", "Node.js", "Full Stack", "JavaScript"],
+        what_you_learn: ["Crear componentes React", "Desarrollar APIs REST"],
+        requirements: ["Computadora con internet", "Ganas de aprender"],
+        course_features: ["Videos en HD", "Acceso de por vida", "Certificado de finalización"]
+      });
+    }
+  };
+
+  const handleSave = async () => {
+    if (!courseData.title || !courseData.description || !courseData.category) {
+      toast({
+        title: "Error",
+        description: "Por favor completa todos los campos obligatorios",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      toast({
+        title: isEdit ? "Curso actualizado" : "Curso creado",
+        description: `El curso "${courseData.title}" ha sido ${isEdit ? "actualizado" : "creado"} exitosamente.`
+      });
+      navigate("/admin");
+    } catch (error) {
+      console.error("Error saving course:", error);
+      toast({
+        title: "Error",
+        description: "Error al guardar el curso",
+        variant: "destructive"
+      });
+    }
   };
 
   const addModule = () => {
     const newModule: Module = {
       id: Date.now().toString(),
       title: "Nuevo Módulo",
+      description: "",
+      order_index: courseData.modules.length + 1,
       lessons: []
     };
-    setModules([...modules, newModule]);
+    setCourseData({
+      ...courseData,
+      modules: [...courseData.modules, newModule]
+    });
   };
 
   const addLesson = (moduleId: string) => {
     const newLesson: Lesson = {
       id: Date.now().toString(),
       title: "Nueva Lección",
-      duration: "0m",
-      type: "video"
+      description: "",
+      duration_minutes: 0,
+      type: "video",
+      is_free: false,
+      resources: []
     };
-    
-    setModules(modules.map(module => 
-      module.id === moduleId 
-        ? { ...module, lessons: [...module.lessons, newLesson] }
-        : module
-    ));
+
+    setCourseData({
+      ...courseData,
+      modules: courseData.modules.map(module =>
+        module.id === moduleId
+          ? { ...module, lessons: [...module.lessons, newLesson] }
+          : module
+      )
+    });
   };
 
-  const removeModule = (moduleId: string) => {
-    setModules(modules.filter(module => module.id !== moduleId));
-  };
-
-  const removeLesson = (moduleId: string, lessonId: string) => {
-    setModules(modules.map(module =>
-      module.id === moduleId
-        ? { ...module, lessons: module.lessons.filter(lesson => lesson.id !== lessonId) }
-        : module
-    ));
-  };
-
-  const addPrerequisite = () => {
-    if (newPrerequisite.trim()) {
+  const addArrayItem = (field: keyof typeof newItem, arrayField: keyof CourseData) => {
+    const value = newItem[field].trim();
+    if (value) {
       setCourseData({
         ...courseData,
-        prerequisites: [...courseData.prerequisites, newPrerequisite.trim()]
+        [arrayField]: [...(courseData[arrayField] as string[]), value]
       });
-      setNewPrerequisite("");
+      setNewItem({ ...newItem, [field]: "" });
     }
   };
 
-  const addObjective = () => {
-    if (newObjective.trim()) {
-      setCourseData({
-        ...courseData,
-        objectives: [...courseData.objectives, newObjective.trim()]
-      });
-      setNewObjective("");
-    }
+  const removeArrayItem = (arrayField: keyof CourseData, index: number) => {
+    setCourseData({
+      ...courseData,
+      [arrayField]: (courseData[arrayField] as string[]).filter((_, i) => i !== index)
+    });
   };
+
+  const calculateProgress = () => {
+    const requiredFields = ['title', 'description', 'category', 'level'];
+    const completedFields = requiredFields.filter(field => courseData[field as keyof CourseData]);
+    return (completedFields.length / requiredFields.length) * 100;
+  };
+
+  const updateModuleTitle = (moduleIndex: number, title: string) => {
+    const updatedModules = courseData.modules.map((m, i) =>
+      i === moduleIndex ? { ...m, title } : m
+    );
+    setCourseData({ ...courseData, modules: updatedModules });
+  };
+
+  const updateLessonProperty = (moduleIndex: number, lessonIndex: number, property: string, value: any) => {
+    const updatedModules = courseData.modules.map((m, i) =>
+      i === moduleIndex
+        ? {
+            ...m,
+            lessons: m.lessons.map((l, j) =>
+              j === lessonIndex ? { ...l, [property]: value } : l
+            )
+          }
+        : m
+    );
+    setCourseData({ ...courseData, modules: updatedModules });
+  };
+
+  const removeLesson = (moduleIndex: number, lessonIndex: number) => {
+    const updatedModules = courseData.modules.map((m, i) =>
+      i === moduleIndex
+        ? { ...m, lessons: m.lessons.filter((_, j) => j !== lessonIndex) }
+        : m
+    );
+    setCourseData({ ...courseData, modules: updatedModules });
+  };
+
+  const removeModule = (moduleIndex: number) => {
+    const updatedModules = courseData.modules.filter((_, i) => i !== moduleIndex);
+    setCourseData({ ...courseData, modules: updatedModules });
+  };
+
+  const addFeatureToList = (feature: string) => {
+    setCourseData({
+      ...courseData,
+      course_features: [...courseData.course_features, feature]
+    });
+  };
+
+  const removeFeatureFromList = (feature: string) => {
+    setCourseData({
+      ...courseData,
+      course_features: courseData.course_features.filter(f => f !== feature)
+    });
+  };
+
+  if (!user || profile?.role !== 'admin') {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Card>
+          <CardContent className="text-center py-8">
+            <h3 className="text-lg font-semibold mb-2">Acceso Denegado</h3>
+            <p className="text-gray-600">Solo los administradores pueden acceder a esta página.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-50">
+      <div className="bg-white border-b sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <Button variant="ghost" onClick={() => navigate("/admin/dashboard")}>
+              <Button variant="ghost" onClick={() => navigate("/admin")}>
                 <ArrowLeft className="h-4 w-4 mr-2" />
-                Volver
+                Volver al Panel
               </Button>
               <div>
                 <h1 className="text-2xl font-bold">
                   {isEdit ? "Editar Curso" : "Crear Nuevo Curso"}
                 </h1>
-                <p className="text-muted-foreground">
-                  {isEdit ? "Modifica los detalles del curso" : "Completa la información del curso"}
+                <p className="text-gray-600">
+                  {courseData.title || "Curso sin título"}
                 </p>
               </div>
             </div>
             
-            <div className="flex items-center space-x-2">
-              <Button variant="outline">
-                <X className="h-4 w-4 mr-2" />
-                Cancelar
+            <div className="flex items-center space-x-4">
+              <div className="text-sm text-gray-600">
+                Progreso: {Math.round(calculateProgress())}%
+              </div>
+              <Progress value={calculateProgress()} className="w-32" />
+              <Button variant="outline" onClick={() => setPreviewMode(!previewMode)}>
+                <Eye className="h-4 w-4 mr-2" />
+                {previewMode ? "Editar" : "Previsualizar"}
               </Button>
-              <Button onClick={handleSave} className="bg-gradient-primary">
+              <Button onClick={handleSave}>
                 <Save className="h-4 w-4 mr-2" />
-                {isEdit ? "Guardar Cambios" : "Crear Curso"}
+                {isEdit ? "Actualizar" : "Crear"} Curso
               </Button>
             </div>
           </div>
         </div>
-      </header>
+      </div>
 
       <div className="container mx-auto px-4 py-8">
-        <Tabs defaultValue="basic" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="basic">Información Básica</TabsTrigger>
-            <TabsTrigger value="content">Contenido</TabsTrigger>
-            <TabsTrigger value="requirements">Requisitos</TabsTrigger>
-            <TabsTrigger value="settings">Configuración</TabsTrigger>
-          </TabsList>
-
-          {/* Basic Information */}
-          <TabsContent value="basic" className="space-y-6">
-            <div className="grid lg:grid-cols-2 gap-6">
+        {previewMode ? (
+          <CoursePreview courseData={courseData} />
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+            {/* Sidebar Steps */}
+            <div className="lg:col-span-1">
               <Card>
                 <CardHeader>
-                  <CardTitle>Detalles del Curso</CardTitle>
-                  <CardDescription>Información principal del curso</CardDescription>
+                  <CardTitle>Pasos de Creación</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="title">Título del curso</Label>
-                    <Input
-                      id="title"
-                      value={courseData.title}
-                      onChange={(e) => setCourseData({ ...courseData, title: e.target.value })}
-                      placeholder="Ej: React Avanzado para Desarrolladores"
-                    />
+                <CardContent>
+                  <div className="space-y-4">
+                    {steps.map((step) => {
+                      const Icon = step.icon;
+                      return (
+                        <button
+                          key={step.id}
+                          onClick={() => setCurrentStep(step.id)}
+                          className={`w-full text-left p-3 rounded-lg flex items-center space-x-3 transition-colors ${
+                            currentStep === step.id
+                              ? "bg-blue-100 text-blue-700 border border-blue-200"
+                              : "hover:bg-gray-100"
+                          }`}
+                        >
+                          <Icon className="h-5 w-5" />
+                          <span className="font-medium">{step.title}</span>
+                          {currentStep > step.id && (
+                            <CheckCircle className="h-4 w-4 text-green-600 ml-auto" />
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="description">Descripción</Label>
-                    <Textarea
-                      id="description"
-                      value={courseData.description}
-                      onChange={(e) => setCourseData({ ...courseData, description: e.target.value })}
-                      placeholder="Describe lo que aprenderán los estudiantes..."
-                      rows={4}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="instructor">Instructor</Label>
-                    <Input
-                      id="instructor"
-                      value={courseData.instructor}
-                      onChange={(e) => setCourseData({ ...courseData, instructor: e.target.value })}
-                      placeholder="Nombre del instructor"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="category">Categoría</Label>
-                      <Select value={courseData.category} onValueChange={(value) => setCourseData({ ...courseData, category: value })}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar categoría" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Programación">Programación</SelectItem>
-                          <SelectItem value="Frontend">Frontend</SelectItem>
-                          <SelectItem value="Backend">Backend</SelectItem>
-                          <SelectItem value="Data Science">Data Science</SelectItem>
-                          <SelectItem value="Diseño">Diseño</SelectItem>
-                          <SelectItem value="DevOps">DevOps</SelectItem>
-                          <SelectItem value="IA/ML">IA/ML</SelectItem>
-                          <SelectItem value="Seguridad">Seguridad</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="level">Nivel</Label>
-                      <Select value={courseData.level} onValueChange={(value) => setCourseData({ ...courseData, level: value })}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar nivel" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Principiante">Principiante</SelectItem>
-                          <SelectItem value="Intermedio">Intermedio</SelectItem>
-                          <SelectItem value="Avanzado">Avanzado</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="duration">Duración estimada</Label>
-                    <Input
-                      id="duration"
-                      value={courseData.duration}
-                      onChange={(e) => setCourseData({ ...courseData, duration: e.target.value })}
-                      placeholder="Ej: 15 horas"
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Imagen del Curso</CardTitle>
-                  <CardDescription>Sube una imagen representativa</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
-                    <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-muted-foreground mb-4">
-                      Arrastra una imagen aquí o haz clic para seleccionar
-                    </p>
-                    <Button variant="outline">
-                      Seleccionar Imagen
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Formatos recomendados: JPG, PNG. Tamaño recomendado: 1280x720px
-                  </p>
                 </CardContent>
               </Card>
             </div>
-          </TabsContent>
 
-          {/* Content */}
-          <TabsContent value="content" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Estructura del Curso</CardTitle>
-                    <CardDescription>Organiza el contenido en módulos y lecciones</CardDescription>
-                  </div>
-                  <Button onClick={addModule}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Agregar Módulo
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {modules.map((module, moduleIndex) => (
-                  <Card key={module.id} className="border-border">
-                    <CardHeader>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
-                          <Badge variant="outline">Módulo {moduleIndex + 1}</Badge>
-                          <Input
-                            value={module.title}
-                            onChange={(e) => {
-                              const updatedModules = modules.map(m =>
-                                m.id === module.id ? { ...m, title: e.target.value } : m
-                              );
-                              setModules(updatedModules);
-                            }}
-                            className="font-medium"
-                          />
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <Button size="sm" onClick={() => addLesson(module.id)}>
-                            <Plus className="h-4 w-4 mr-2" />
-                            Lección
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => removeModule(module.id)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+            {/* Main Content */}
+            <div className="lg:col-span-3">
+              {currentStep === 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Información Básica del Curso</CardTitle>
+                    <CardDescription>
+                      Completa la información fundamental de tu curso
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label htmlFor="title">Título del Curso *</Label>
+                        <Input
+                          id="title"
+                          value={courseData.title}
+                          onChange={(e) => setCourseData({...courseData, title: e.target.value})}
+                          placeholder="Ej: Desarrollo Web Full Stack con React"
+                        />
                       </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        {module.lessons.map((lesson, lessonIndex) => (
-                          <div key={lesson.id} className="flex items-center space-x-4 p-3 border border-border rounded-lg">
-                            <Badge variant="secondary">
-                              {lessonIndex + 1}
-                            </Badge>
-                            <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-2">
-                              <Input
-                                value={lesson.title}
-                                onChange={(e) => {
-                                  const updatedModules = modules.map(m =>
-                                    m.id === module.id
-                                      ? {
-                                          ...m,
-                                          lessons: m.lessons.map(l =>
-                                            l.id === lesson.id ? { ...l, title: e.target.value } : l
-                                          )
-                                        }
-                                      : m
-                                  );
-                                  setModules(updatedModules);
-                                }}
-                                placeholder="Título de la lección"
-                              />
-                              <Input
-                                value={lesson.duration}
-                                onChange={(e) => {
-                                  const updatedModules = modules.map(m =>
-                                    m.id === module.id
-                                      ? {
-                                          ...m,
-                                          lessons: m.lessons.map(l =>
-                                            l.id === lesson.id ? { ...l, duration: e.target.value } : l
-                                          )
-                                        }
-                                      : m
-                                  );
-                                  setModules(updatedModules);
-                                }}
-                                placeholder="Duración"
-                              />
-                              <Select
-                                value={lesson.type}
-                                onValueChange={(value: 'video' | 'text' | 'quiz') => {
-                                  const updatedModules = modules.map(m =>
-                                    m.id === module.id
-                                      ? {
-                                          ...m,
-                                          lessons: m.lessons.map(l =>
-                                            l.id === lesson.id ? { ...l, type: value } : l
-                                          )
-                                        }
-                                      : m
-                                  );
-                                  setModules(updatedModules);
-                                }}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="video">
-                                    <div className="flex items-center">
-                                      <Video className="h-4 w-4 mr-2" />
-                                      Video
-                                    </div>
-                                  </SelectItem>
-                                  <SelectItem value="text">
-                                    <div className="flex items-center">
-                                      <FileText className="h-4 w-4 mr-2" />
-                                      Texto
-                                    </div>
-                                  </SelectItem>
-                                  <SelectItem value="quiz">
-                                    <div className="flex items-center">
-                                      <Users className="h-4 w-4 mr-2" />
-                                      Quiz
-                                    </div>
-                                  </SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => removeLesson(module.id, lesson.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="category">Categoría *</Label>
+                        <Select 
+                          value={courseData.category} 
+                          onValueChange={(value) => setCourseData({...courseData, category: value})}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecciona una categoría" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {CATEGORIES.map((cat) => (
+                              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="description">Descripción Corta *</Label>
+                      <Textarea
+                        id="description"
+                        value={courseData.description}
+                        onChange={(e) => setCourseData({...courseData, description: e.target.value})}
+                        placeholder="Descripción breve que aparecerá en las tarjetas del curso"
+                        rows={3}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="long_description">Descripción Detallada</Label>
+                      <Textarea
+                        id="long_description"
+                        value={courseData.long_description}
+                        onChange={(e) => setCourseData({...courseData, long_description: e.target.value})}
+                        placeholder="Descripción completa del curso, objetivos, metodología..."
+                        rows={6}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="space-y-2">
+                        <Label htmlFor="level">Nivel</Label>
+                        <Select 
+                          value={courseData.level} 
+                          onValueChange={(value: 'beginner' | 'intermediate' | 'advanced') => 
+                            setCourseData({...courseData, level: value})}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="beginner">Principiante</SelectItem>
+                            <SelectItem value="intermediate">Intermedio</SelectItem>
+                            <SelectItem value="advanced">Avanzado</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="subscription_tier">Plan de Suscripción</Label>
+                        <Select 
+                          value={courseData.subscription_tier} 
+                          onValueChange={(value: 'free' | 'basic' | 'premium') => 
+                            setCourseData({...courseData, subscription_tier: value})}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="free">Gratuito</SelectItem>
+                            <SelectItem value="basic">Básico ($29/mes)</SelectItem>
+                            <SelectItem value="premium">Premium ($49/mes)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="language">Idioma</Label>
+                        <Select 
+                          value={courseData.language} 
+                          onValueChange={(value) => setCourseData({...courseData, language: value})}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {LANGUAGES.map((lang) => (
+                              <SelectItem key={lang} value={lang}>{lang}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <Label>Imagen de Portada</Label>
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                        {courseData.thumbnail_url ? (
+                          <div className="space-y-4">
+                            <img 
+                              src={courseData.thumbnail_url} 
+                              alt="Preview" 
+                              className="mx-auto h-32 w-48 object-cover rounded"
+                            />
+                            <Button variant="outline" onClick={() => setCourseData({...courseData, thumbnail_url: ""})}>
+                              Cambiar Imagen
                             </Button>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            <Image className="mx-auto h-12 w-12 text-gray-400" />
+                            <div>
+                              <Button 
+                                variant="outline" 
+                                onClick={() => setCourseData({...courseData, thumbnail_url: "/placeholder.svg"})}
+                              >
+                                <Upload className="h-4 w-4 mr-2" />
+                                Subir Imagen
+                              </Button>
+                              <p className="text-sm text-gray-500 mt-2">
+                                JPG, PNG o GIF (máximo 2MB)
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              
+              {currentStep === 1 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Contenido del Curso</CardTitle>
+                    <CardDescription>
+                      Organiza tu curso en módulos y lecciones
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-6">
+                      {courseData.modules.map((module, moduleIndex) => (
+                        <Card key={module.id} className="border-l-4 border-l-blue-500">
+                          <CardHeader>
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <CardTitle className="text-lg">Módulo {moduleIndex + 1}</CardTitle>
+                                <Input
+                                  value={module.title}
+                                  onChange={(e) => updateModuleTitle(moduleIndex, e.target.value)}
+                                  className="mt-2 font-medium"
+                                  placeholder="Título del módulo"
+                                />
+                              </div>
+                              <div className="flex space-x-2">
+                                <Button
+                                  variant="outline"
+                                  onClick={() => addLesson(module.id)}
+                                >
+                                  <Plus className="h-4 w-4 mr-2" />
+                                  Lección
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  onClick={() => removeModule(moduleIndex)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="space-y-4">
+                              {module.lessons.map((lesson, lessonIndex) => (
+                                <div key={lesson.id} className="flex items-center space-x-4 p-4 border rounded-lg">
+                                  <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4">
+                                    <Input
+                                      value={lesson.title}
+                                      onChange={(e) => updateLessonProperty(moduleIndex, lessonIndex, 'title', e.target.value)}
+                                      placeholder="Título de la lección"
+                                    />
+                                    <Select
+                                      value={lesson.type}
+                                      onValueChange={(value: 'video' | 'text' | 'quiz' | 'assignment') => 
+                                        updateLessonProperty(moduleIndex, lessonIndex, 'type', value)}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="video">Video</SelectItem>
+                                        <SelectItem value="text">Texto</SelectItem>
+                                        <SelectItem value="quiz">Quiz</SelectItem>
+                                        <SelectItem value="assignment">Tarea</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    <Input
+                                      type="number"
+                                      value={lesson.duration_minutes}
+                                      onChange={(e) => updateLessonProperty(moduleIndex, lessonIndex, 'duration_minutes', parseInt(e.target.value) || 0)}
+                                      placeholder="Duración (min)"
+                                    />
+                                    <div className="flex items-center space-x-2">
+                                      <Switch
+                                        checked={lesson.is_free}
+                                        onCheckedChange={(checked) => updateLessonProperty(moduleIndex, lessonIndex, 'is_free', checked)}
+                                      />
+                                      <Label className="text-sm">Gratis</Label>
+                                    </div>
+                                  </div>
+                                  <Button
+                                    variant="destructive"
+                                    onClick={() => removeLesson(moduleIndex, lessonIndex)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+
+                      <Button onClick={addModule} className="w-full" variant="outline">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Agregar Módulo
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              
+              {currentStep === 2 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Configuración del Curso</CardTitle>
+                    <CardDescription>
+                      Configuraciones adicionales y metadatos
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label>Publicar Curso</Label>
+                          <p className="text-sm text-gray-500">Hacer visible para estudiantes</p>
+                        </div>
+                        <Switch
+                          checked={courseData.published}
+                          onCheckedChange={(checked) => setCourseData({...courseData, published: checked})}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label>Curso Destacado</Label>
+                          <p className="text-sm text-gray-500">Mostrar en página principal</p>
+                        </div>
+                        <Switch
+                          checked={courseData.featured}
+                          onCheckedChange={(checked) => setCourseData({...courseData, featured: checked})}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <Label>Características del Curso</Label>
+                      <div className="grid grid-cols-2 gap-3">
+                        {COURSE_FEATURES.map((feature) => (
+                          <div key={feature} className="flex items-center space-x-2">
+                            <Switch
+                              checked={courseData.course_features.includes(feature)}
+                              onCheckedChange={() => {
+                                const isSelected = courseData.course_features.includes(feature);
+                                if (isSelected) {
+                                  removeFeatureFromList(feature);
+                                } else {
+                                  addFeatureToList(feature);
+                                }
+                              }}
+                            />
+                            <Label className="text-sm">{feature}</Label>
                           </div>
                         ))}
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                    </div>
 
-                {modules.length === 0 && (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <Video className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                    <p>No hay módulos creados aún.</p>
-                    <p className="text-sm">Haz clic en "Agregar Módulo" para comenzar.</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Requirements */}
-          <TabsContent value="requirements" className="space-y-6">
-            <div className="grid lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Requisitos Previos</CardTitle>
-                  <CardDescription>¿Qué deben saber los estudiantes antes de tomar el curso?</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex space-x-2">
-                    <Input
-                      value={newPrerequisite}
-                      onChange={(e) => setNewPrerequisite(e.target.value)}
-                      placeholder="Agregar requisito..."
-                      onKeyPress={(e) => e.key === 'Enter' && addPrerequisite()}
-                    />
-                    <Button onClick={addPrerequisite}>
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <div className="space-y-2">
-                    {courseData.prerequisites.map((req, index) => (
-                      <div key={index} className="flex items-center justify-between p-2 border border-border rounded">
-                        <span className="text-sm">{req}</span>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            const updated = courseData.prerequisites.filter((_, i) => i !== index);
-                            setCourseData({ ...courseData, prerequisites: updated });
-                          }}
-                        >
-                          <X className="h-4 w-4" />
+                    <div className="space-y-4">
+                      <Label>Tags del Curso</Label>
+                      <div className="flex space-x-2">
+                        <Input
+                          value={newItem.tag}
+                          onChange={(e) => setNewItem({...newItem, tag: e.target.value})}
+                          placeholder="Agregar tag"
+                          onKeyDown={(e) => e.key === 'Enter' && addArrayItem('tag', 'tags')}
+                        />
+                        <Button onClick={() => addArrayItem('tag', 'tags')}>
+                          <Plus className="h-4 w-4" />
                         </Button>
                       </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Objetivos de Aprendizaje</CardTitle>
-                  <CardDescription>¿Qué aprenderán los estudiantes?</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex space-x-2">
-                    <Input
-                      value={newObjective}
-                      onChange={(e) => setNewObjective(e.target.value)}
-                      placeholder="Agregar objetivo..."
-                      onKeyPress={(e) => e.key === 'Enter' && addObjective()}
-                    />
-                    <Button onClick={addObjective}>
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <div className="space-y-2">
-                    {courseData.objectives.map((obj, index) => (
-                      <div key={index} className="flex items-center justify-between p-2 border border-border rounded">
-                        <span className="text-sm">{obj}</span>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            const updated = courseData.objectives.filter((_, i) => i !== index);
-                            setCourseData({ ...courseData, objectives: updated });
-                          }}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
+                      <div className="flex flex-wrap gap-2">
+                        {courseData.tags.map((tag, index) => (
+                          <Badge key={`tag-${tag}-${index}`} variant="secondary" className="flex items-center space-x-1">
+                            <span>{tag}</span>
+                            <X 
+                              className="h-3 w-3 cursor-pointer" 
+                              onClick={() => removeArrayItem('tags', index)}
+                            />
+                          </Badge>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              
+              {currentStep === 3 && (
+                <CoursePreview courseData={courseData} />
+              )}
             </div>
-          </TabsContent>
-
-          {/* Settings */}
-          <TabsContent value="settings" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Configuración de Publicación</CardTitle>
-                <CardDescription>Controla la visibilidad y disponibilidad del curso</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="published">Curso Publicado</Label>
-                    <p className="text-sm text-muted-foreground">El curso estará visible para los estudiantes</p>
-                  </div>
-                  <Switch
-                    id="published"
-                    checked={courseData.published}
-                    onCheckedChange={(checked) => setCourseData({ ...courseData, published: checked })}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="featured">Curso Destacado</Label>
-                    <p className="text-sm text-muted-foreground">Aparecerá en la sección de cursos destacados</p>
-                  </div>
-                  <Switch
-                    id="featured"
-                    checked={courseData.featured}
-                    onCheckedChange={(checked) => setCourseData({ ...courseData, featured: checked })}
-                  />
-                </div>
-
-                <div className="border-t border-border pt-6">
-                  <h4 className="font-medium mb-4">Información del Modelo de Suscripción</h4>
-                  <div className="bg-muted/50 p-4 rounded-lg">
-                    <p className="text-sm text-muted-foreground">
-                      <strong>Precio:</strong> Incluido en todos los planes de suscripción
-                    </p>
-                    <p className="text-sm text-muted-foreground mt-2">
-                      Este curso estará disponible automáticamente para todos los usuarios con una suscripción activa, independientemente del plan que tengan.
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+          </div>
+        )}
       </div>
     </div>
+  );
+};
+
+const CoursePreview = ({ courseData }: { courseData: CourseData }) => {
+  const getBadgeClasses = (tier: string) => {
+    const baseClasses = "inline-block";
+    switch (tier) {
+      case 'free':
+        return `${baseClasses} bg-gray-100 text-gray-800`;
+      case 'basic':
+        return `${baseClasses} bg-blue-100 text-blue-800`;
+      case 'premium':
+        return `${baseClasses} bg-purple-100 text-purple-800`;
+      default:
+        return `${baseClasses} bg-gray-100 text-gray-800`;
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Previsualización del Curso</CardTitle>
+        <CardDescription>
+          Así se verá tu curso para los estudiantes
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <img
+                src={courseData.thumbnail_url || "/placeholder.svg"}
+                alt={courseData.title}
+                className="w-full h-64 object-cover rounded-lg"
+              />
+            </div>
+            <div className="space-y-4">
+              <Badge className={getBadgeClasses(courseData.subscription_tier)}>
+                {courseData.subscription_tier.toUpperCase()}
+              </Badge>
+              <h1 className="text-2xl font-bold">{courseData.title}</h1>
+              <p className="text-gray-600">{courseData.description}</p>
+              <div className="flex items-center space-x-4 text-sm text-gray-500">
+                <div className="flex items-center space-x-1">
+                  <Clock className="h-4 w-4" />
+                  <span>{courseData.duration_hours}h</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <Users className="h-4 w-4" />
+                  <span>{courseData.level}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Contenido del Curso</h3>
+            {courseData.modules.map((module, index) => (
+              <Card key={module.id}>
+                <CardHeader>
+                  <CardTitle className="text-base">
+                    Módulo {index + 1}: {module.title}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {module.lessons.map((lesson) => (
+                      <div key={lesson.id} className="flex items-center justify-between py-2 border-b last:border-b-0">
+                        <div className="flex items-center space-x-3">
+                          {lesson.type === 'video' && <Video className="h-4 w-4" />}
+                          {lesson.type === 'text' && <FileText className="h-4 w-4" />}
+                          <span>{lesson.title}</span>
+                          {lesson.is_free && <Badge variant="outline">Gratis</Badge>}
+                        </div>
+                        <span className="text-sm text-gray-500">{lesson.duration_minutes}min</span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 };
 

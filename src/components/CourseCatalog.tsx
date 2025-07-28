@@ -18,7 +18,7 @@ interface Course {
   rating: number;
   level: string;
   category: string;
-  price: number;
+  subscription_tier: string;
   is_free: boolean;
   published: boolean;
 }
@@ -35,7 +35,7 @@ const mockCourses = [
     rating: 4.8,
     level: "intermediate",
     category: "Desarrollo Web",
-    price: 99,
+    subscription_tier: "premium",
     is_free: false,
     published: true
   },
@@ -50,7 +50,7 @@ const mockCourses = [
     rating: 4.9,
     level: "advanced",
     category: "Data Science",
-    price: 129,
+    subscription_tier: "premium",
     is_free: false,
     published: true
   },
@@ -65,7 +65,7 @@ const mockCourses = [
     rating: 4.7,
     level: "beginner",
     category: "Diseño",
-    price: 79,
+    subscription_tier: "basic",
     is_free: false,
     published: true
   },
@@ -80,7 +80,7 @@ const mockCourses = [
     rating: 4.6,
     level: "intermediate",
     category: "Marketing",
-    price: 89,
+    subscription_tier: "basic",
     is_free: false,
     published: true
   },
@@ -95,7 +95,7 @@ const mockCourses = [
     rating: 4.9,
     level: "advanced",
     category: "IA",
-    price: 149,
+    subscription_tier: "premium",
     is_free: false,
     published: true
   },
@@ -110,7 +110,7 @@ const mockCourses = [
     rating: 4.5,
     level: "beginner",
     category: "Finanzas",
-    price: 0,
+    subscription_tier: "free",
     is_free: true,
     published: true
   }
@@ -198,6 +198,32 @@ const CourseCatalog = () => {
     }
   };
 
+  const getSubscriptionTierColor = (tier: string) => {
+    switch (tier) {
+      case 'free':
+        return 'bg-gray-600/80';
+      case 'basic':
+        return 'bg-blue-600/80';
+      case 'premium':
+        return 'bg-purple-600/80';
+      default:
+        return 'bg-gray-600/80';
+    }
+  };
+
+  const getSubscriptionTierText = (tier: string) => {
+    switch (tier) {
+      case 'free':
+        return 'Gratis';
+      case 'basic':
+        return 'Basic';
+      case 'premium':
+        return 'Premium';
+      default:
+        return tier;
+    }
+  };
+
   if (loading) {
     return (
       <section id="cursos" className="py-20 bg-background">
@@ -270,9 +296,9 @@ const CourseCatalog = () => {
                   <div className="absolute top-4 right-4">
                     <Badge 
                       variant="outline" 
-                      className="border-white text-white bg-green-600/80"
+                      className={`border-white text-white ${getSubscriptionTierColor(course.subscription_tier)}`}
                     >
-                      {course.is_free || hasActiveSubscription ? "Incluido" : `$${course.price}`}
+                      {getSubscriptionTierText(course.subscription_tier)}
                     </Badge>
                   </div>
                   <div className="absolute bottom-4 left-4 right-4">

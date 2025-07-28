@@ -4,10 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { useEdgeFunction } from '@/hooks/useEdgeFunctions';
+import { useEdgeFunction, useEnrollInCourse } from '@/hooks/useEdgeFunctions';
 import { Search, Star, Clock, Users, BookOpen, Filter } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useCreateCheckout, useEnrollInCourse } from '@/hooks/useEdgeFunctions';
 
 interface Course {
   id: string;
@@ -19,7 +18,7 @@ interface Course {
   duration_hours: number;
   level: 'beginner' | 'intermediate' | 'advanced';
   category: string;
-  price: number;
+  subscription_tier: 'free' | 'basic' | 'premium';
   rating: number;
   students_count: number;
   is_free: boolean;
@@ -31,12 +30,12 @@ interface Course {
 interface CourseFilters {
   category: string;
   level: string;
-  priceRange: string;
+  subscriptionTier: string;
   search: string;
 }
 
 const CoursesPage: React.FC = () => {
-  const { user, hasActiveSubscription } = useAuth();
+  const { user, hasActiveSubscription, subscription } = useAuth();
   const navigate = useNavigate();
   const [courses, setCourses] = useState<Course[]>([]);
   const [filteredCourses, setFilteredCourses] = useState<Course[]>([]);
@@ -44,27 +43,14 @@ const CoursesPage: React.FC = () => {
   const [filters, setFilters] = useState<CourseFilters>({
     category: '',
     level: '',
-    priceRange: '',
+    subscriptionTier: '',
     search: ''
   });
 
-  const { execute: getAllCourses, loading: coursesLoading } = useEdgeFunction(
+  const { loading: coursesLoading } = useEdgeFunction(
     'course',
     'getAllCourses'
   );
-
-  const { execute: getCategories } = useEdgeFunction(
-    'course',
-    'getCategories'
-  );
-
-  const { execute: createCheckout, loading: checkoutLoading } = useCreateCheckout({
-    onSuccess: (data) => {
-      if (data.url) {
-        window.location.href = data.url;
-      }
-    }
-  });
 
   const { execute: enrollInCourse, loading: enrollLoading } = useEnrollInCourse({
     onSuccess: () => {
@@ -83,17 +69,147 @@ const CoursesPage: React.FC = () => {
   }, [courses, filters]);
 
   const loadCourses = async () => {
-    const result = await getAllCourses();
-    if (result.data) {
-      setCourses(result.data);
-    }
+    // Mock data for demonstration
+    const mockCourses: Course[] = [
+      {
+        id: '1',
+        title: 'Desarrollo Web Full Stack con React',
+        description: 'Aprende a crear aplicaciones web completas desde cero con React, Node.js y bases de datos modernas.',
+        image_url: '/placeholder.svg',
+        instructor_name: 'Carlos Rodríguez',
+        instructor_id: '1',
+        duration_hours: 40,
+        level: 'intermediate',
+        category: 'Desarrollo Web',
+        subscription_tier: 'premium',
+        rating: 4.8,
+        students_count: 1250,
+        is_free: false,
+        published: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      },
+      {
+        id: '2',
+        title: 'Python para Principiantes',
+        description: 'Curso introductorio completo de Python. Aprende desde variables hasta programación orientada a objetos.',
+        image_url: '/placeholder.svg',
+        instructor_name: 'María González',
+        instructor_id: '2',
+        duration_hours: 25,
+        level: 'beginner',
+        category: 'Programación',
+        subscription_tier: 'basic',
+        rating: 4.6,
+        students_count: 2100,
+        is_free: false,
+        published: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      },
+      {
+        id: '3',
+        title: 'Introducción al Machine Learning',
+        description: 'Curso gratuito que te introduce al fascinante mundo del Machine Learning y la inteligencia artificial.',
+        image_url: '/placeholder.svg',
+        instructor_name: 'Dr. Luis Martínez',
+        instructor_id: '3',
+        duration_hours: 15,
+        level: 'beginner',
+        category: 'Data Science',
+        subscription_tier: 'free',
+        rating: 4.4,
+        students_count: 3500,
+        is_free: true,
+        published: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      },
+      {
+        id: '4',
+        title: 'Diseño UX/UI Moderno',
+        description: 'Aprende a diseñar interfaces de usuario atractivas y funcionales con las mejores prácticas.',
+        image_url: '/placeholder.svg',
+        instructor_name: 'Ana Silva',
+        instructor_id: '4',
+        duration_hours: 30,
+        level: 'intermediate',
+        category: 'Diseño',
+        subscription_tier: 'premium',
+        rating: 4.9,
+        students_count: 800,
+        is_free: false,
+        published: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      },
+      {
+        id: '5',
+        title: 'Marketing Digital Efectivo',
+        description: 'Estrategias probadas de marketing digital para hacer crecer tu negocio en línea.',
+        image_url: '/placeholder.svg',
+        instructor_name: 'Pedro Ramírez',
+        instructor_id: '5',
+        duration_hours: 20,
+        level: 'beginner',
+        category: 'Marketing Digital',
+        subscription_tier: 'basic',
+        rating: 4.5,
+        students_count: 1800,
+        is_free: false,
+        published: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      },
+      {
+        id: '6',
+        title: 'JavaScript Avanzado',
+        description: 'Domina conceptos avanzados de JavaScript: closures, async/await, patrones de diseño y más.',
+        image_url: '/placeholder.svg',
+        instructor_name: 'Roberto López',
+        instructor_id: '6',
+        duration_hours: 35,
+        level: 'advanced',
+        category: 'Programación',
+        subscription_tier: 'premium',
+        rating: 4.7,
+        students_count: 950,
+        is_free: false,
+        published: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+    ];
+
+    setCourses(mockCourses);
+    
+    // Uncomment this when you have real API
+    // const result = await getAllCourses();
+    // if (result.data) {
+    //   setCourses(result.data);
+    // }
   };
 
   const loadCategories = async () => {
-    const result = await getCategories();
-    if (result.data) {
-      setCategories(result.data.map((cat: any) => cat.name));
-    }
+    // Mock categories
+    const mockCategories = [
+      'Desarrollo Web',
+      'Programación', 
+      'Data Science',
+      'Diseño',
+      'Marketing Digital',
+      'Negocios',
+      'Fotografía',
+      'Música'
+    ];
+    
+    setCategories(mockCategories);
+    
+    // Uncomment this when you have real API
+    // const result = await getCategories();
+    // if (result.data) {
+    //   setCategories(result.data.map((cat: any) => cat.name));
+    // }
   };
 
   const filterCourses = () => {
@@ -115,21 +231,8 @@ const CoursesPage: React.FC = () => {
       filtered = filtered.filter(course => course.level === filters.level);
     }
 
-    if (filters.priceRange) {
-      switch (filters.priceRange) {
-        case 'free':
-          filtered = filtered.filter(course => course.is_free);
-          break;
-        case 'under50':
-          filtered = filtered.filter(course => !course.is_free && course.price < 50);
-          break;
-        case '50to100':
-          filtered = filtered.filter(course => !course.is_free && course.price >= 50 && course.price <= 100);
-          break;
-        case 'over100':
-          filtered = filtered.filter(course => !course.is_free && course.price > 100);
-          break;
-      }
+    if (filters.subscriptionTier) {
+      filtered = filtered.filter(course => course.subscription_tier === filters.subscriptionTier);
     }
 
     setFilteredCourses(filtered);
@@ -141,11 +244,25 @@ const CoursesPage: React.FC = () => {
       return;
     }
 
-    if (course.is_free || hasActiveSubscription) {
+    if (course.is_free) {
       await enrollInCourse(course.id);
+    } else if (hasActiveSubscription) {
+      // Check if user's subscription tier allows access to this course
+      const userSubscriptionTier = subscription?.subscription_tier || 'free';
+      if (canAccessCourse(course.subscription_tier, userSubscriptionTier)) {
+        await enrollInCourse(course.id);
+      } else {
+        navigate('/subscription');
+      }
     } else {
-      await createCheckout('single', { courseId: course.id });
+      navigate('/subscription');
     }
+  };
+
+  const canAccessCourse = (courseSubscriptionTier: string, userSubscriptionTier: string) => {
+    const tierHierarchy = { free: 0, basic: 1, premium: 2 };
+    return tierHierarchy[userSubscriptionTier as keyof typeof tierHierarchy] >= 
+           tierHierarchy[courseSubscriptionTier as keyof typeof tierHierarchy];
   };
 
   const getLevelColor = (level: string) => {
@@ -171,6 +288,32 @@ const CoursesPage: React.FC = () => {
         return 'Avanzado';
       default:
         return level;
+    }
+  };
+
+  const getSubscriptionTierColor = (tier: string) => {
+    switch (tier) {
+      case 'free':
+        return 'bg-gray-100 text-gray-800';
+      case 'basic':
+        return 'bg-blue-100 text-blue-800';
+      case 'premium':
+        return 'bg-purple-100 text-purple-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getSubscriptionTierText = (tier: string) => {
+    switch (tier) {
+      case 'free':
+        return 'Gratis';
+      case 'basic':
+        return 'Basic';
+      case 'premium':
+        return 'Premium';
+      default:
+        return tier;
     }
   };
 
@@ -246,15 +389,14 @@ const CoursesPage: React.FC = () => {
             </select>
 
             <select
-              value={filters.priceRange}
-              onChange={(e) => setFilters({ ...filters, priceRange: e.target.value })}
+              value={filters.subscriptionTier}
+              onChange={(e) => setFilters({ ...filters, subscriptionTier: e.target.value })}
               className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="">Todos los precios</option>
+              <option value="">Todos los tiers</option>
               <option value="free">Gratis</option>
-              <option value="under50">Menos de $50</option>
-              <option value="50to100">$50 - $100</option>
-              <option value="over100">Más de $100</option>
+              <option value="basic">Basic</option>
+              <option value="premium">Premium</option>
             </select>
           </div>
         </CardContent>
@@ -272,12 +414,17 @@ const CoursesPage: React.FC = () => {
         {filteredCourses.map((course) => (
           <Card key={course.id} className="hover:shadow-lg transition-shadow cursor-pointer">
             <div className="relative">
-              <img
-                src={course.image_url || '/placeholder.svg'}
-                alt={course.title}
-                className="w-full h-48 object-cover rounded-t-lg"
+              <button
+                className="w-full h-48 object-cover rounded-t-lg cursor-pointer p-0 border-0 bg-transparent"
                 onClick={() => navigate(`/course/${course.id}`)}
-              />
+                type="button"
+              >
+                <img
+                  src={course.image_url || '/placeholder.svg'}
+                  alt={course.title}
+                  className="w-full h-48 object-cover rounded-t-lg"
+                />
+              </button>
               <Badge 
                 variant="secondary" 
                 className={`absolute top-2 right-2 ${getLevelColor(course.level)}`}
@@ -329,26 +476,27 @@ const CoursesPage: React.FC = () => {
               </div>
 
               <div className="flex justify-between items-center">
-                <div className="text-lg font-bold">
+                <div className="flex items-center space-x-2">
                   {course.is_free ? (
-                    <span className="text-green-600">Gratis</span>
+                    <Badge className="bg-green-100 text-green-800">Gratis</Badge>
                   ) : (
-                    <span>${course.price}</span>
+                    <Badge className={getSubscriptionTierColor(course.subscription_tier)}>
+                      {getSubscriptionTierText(course.subscription_tier)}
+                    </Badge>
                   )}
                 </div>
                 
                 <Button
                   onClick={() => handleEnrollClick(course)}
-                  disabled={checkoutLoading || enrollLoading}
+                  disabled={enrollLoading}
                   className="min-w-[100px]"
                 >
-                  {checkoutLoading || enrollLoading ? (
-                    'Procesando...'
-                  ) : course.is_free || hasActiveSubscription ? (
-                    'Inscribirse'
-                  ) : (
-                    'Comprar'
-                  )}
+                  {(() => {
+                    if (enrollLoading) return 'Procesando...';
+                    if (course.is_free) return 'Inscribirse';
+                    if (hasActiveSubscription) return 'Acceder';
+                    return 'Suscribirse';
+                  })()}
                 </Button>
               </div>
             </CardContent>
@@ -371,7 +519,7 @@ const CoursesPage: React.FC = () => {
               onClick={() => setFilters({
                 category: '',
                 level: '',
-                priceRange: '',
+                subscriptionTier: '',
                 search: ''
               })}
             >
