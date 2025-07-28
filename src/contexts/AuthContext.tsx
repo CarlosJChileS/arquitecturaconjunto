@@ -1,7 +1,9 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+
+type UserRole = 'student' | 'instructor' | 'admin';
 
 interface Profile {
   id: string;
@@ -9,20 +11,33 @@ interface Profile {
   full_name: string | null;
   email: string | null;
   avatar_url: string | null;
-  role: string;
+  role: UserRole;
   created_at: string;
   updated_at: string;
+}
+
+interface Subscription {
+  user_id: string;
+  subscribed: boolean;
+  subscription_tier: string | null;
+  subscription_end: string | null;
 }
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: Profile | null;
+  subscription: Subscription | null;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<{ error: any }>;
   refreshProfile: () => Promise<void>;
+  refreshSubscription: () => Promise<void>;
+  isAdmin: boolean;
+  isInstructor: boolean;
+  isStudent: boolean;
+  hasActiveSubscription: boolean;
   loading: boolean;
 }
 
@@ -40,8 +55,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+
+  const isAdmin = profile?.role === 'admin';
+  const isInstructor = profile?.role === 'instructor';
+  const isStudent = profile?.role === 'student';
+  const hasActiveSubscription = subscription?.subscribed === true && 
+    subscription.subscription_end && 
+    new Date(subscription.subscription_end) > new Date();
 
   const fetchProfile = async (userId: string) => {
     try {
@@ -56,15 +79,57 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      setProfile(data);
+      // Type assertion to ensure role matches our UserRole type
+      const profileData = data as Profile;
+      setProfile(profileData);
     } catch (error) {
       console.error('Error fetching profile:', error);
+    }
+  };
+
+  const fetchSubscription = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('user_subscriptions')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // Not found is OK
+        console.error('Error fetching subscription:', error);
+        return;
+      }
+
+      // Transform database data to our Subscription interface
+      if (data) {
+        setSubscription({
+          user_id: userId,
+          subscribed: data.status === 'active',
+          subscription_tier: data.plan_id || null,
+          subscription_end: data.ends_at || null
+        });
+      } else {
+        setSubscription({
+          user_id: userId,
+          subscribed: false,
+          subscription_tier: null,
+          subscription_end: null
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching subscription:', error);
     }
   };
 
   const refreshProfile = async () => {
     if (user) {
       await fetchProfile(user.id);
+    }
+  };
+
+  const refreshSubscription = async () => {
+    if (user) {
+      await fetchSubscription(user.id);
     }
   };
 
@@ -76,12 +141,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Fetch profile data after authentication
+          // Fetch profile and subscription data after authentication
           setTimeout(() => {
             fetchProfile(session.user.id);
+            fetchSubscription(session.user.id);
           }, 0);
         } else {
           setProfile(null);
+          setSubscription(null);
         }
         
         setLoading(false);
@@ -175,17 +242,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { error };
   };
 
-  const value: AuthContextType = {
+  const value: AuthContextType = useMemo(() => ({
     user,
     session,
     profile,
+    subscription,
     signUp,
     signIn,
     signOut,
     updateProfile,
     refreshProfile,
+    refreshSubscription,
+    isAdmin,
+    isInstructor,
+    isStudent,
+    hasActiveSubscription,
     loading,
-  };
+  }), [
+    user,
+    session,
+    profile,
+    subscription,
+    isAdmin,
+    isInstructor,
+    isStudent,
+    hasActiveSubscription,
+    loading
+  ]);
 
   return (
     <AuthContext.Provider value={value}>

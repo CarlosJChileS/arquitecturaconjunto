@@ -2,318 +2,653 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
-import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
-import { Clock, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Textarea } from '@/components/ui/textarea';
+import { useEdgeFunction } from '@/hooks/useEdgeFunctions';
+import { 
+  Clock, CheckCircle, AlertCircle, ArrowRight, ArrowLeft, 
+  FileText, HelpCircle, Timer, BookOpen, Award 
+} from 'lucide-react';
 
 interface Question {
   id: string;
-  question_text: string;
-  options: string[];
+  type: 'multiple_choice' | 'multiple_select' | 'text' | 'essay';
+  question: string;
+  options?: string[];
+  correct_answer?: string | string[];
   points: number;
-  order_index: number;
+  explanation?: string;
 }
 
 interface Exam {
   id: string;
   title: string;
   description: string;
+  course_id: string;
+  course_title: string;
+  duration_minutes: number;
+  total_questions: number;
+  total_points: number;
   passing_score: number;
-  max_attempts: number;
-  time_limit_minutes: number;
+  questions: Question[];
+  attempts_allowed: number;
+  time_limit: boolean;
+  instructions?: string;
 }
 
-const ExamPage = () => {
-  const { examId } = useParams();
+interface Answer {
+  question_id: string;
+  answer: string | string[];
+  time_spent: number;
+}
+
+interface ExamResult {
+  id: string;
+  score: number;
+  percentage: number;
+  passed: boolean;
+  time_taken: number;
+  answers: Answer[];
+  feedback?: string;
+  certificate_id?: string;
+}
+
+const ExamPage: React.FC = () => {
+  const { examId } = useParams<{ examId: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const { toast } = useToast();
   
   const [exam, setExam] = useState<Exam | null>(null);
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [attemptId, setAttemptId] = useState<string | null>(null);
-  const [timeLeft, setTimeLeft] = useState<number>(0);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [answers, setAnswers] = useState<Record<string, Answer>>({});
+  const [timeRemaining, setTimeRemaining] = useState(0);
+  const [examStarted, setExamStarted] = useState(false);
+  const [examCompleted, setExamCompleted] = useState(false);
+  const [examResult, setExamResult] = useState<ExamResult | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (examId && user) {
-      loadExam();
-    }
-  }, [examId, user]);
+  const { execute: getExam } = useEdgeFunction('course', 'getExam');
+  const { execute: submitExam, loading: submitting } = useEdgeFunction('course', 'submitExam');
 
   useEffect(() => {
-    if (timeLeft > 0) {
-      const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
-      return () => clearTimeout(timer);
-    } else if (timeLeft === 0 && attemptId) {
-      handleSubmitExam();
+    if (examId) {
+      loadExam();
     }
-  }, [timeLeft]);
+  }, [examId]);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    if (examStarted && timeRemaining > 0 && !examCompleted) {
+      interval = setInterval(() => {
+        setTimeRemaining((prev) => {
+          if (prev <= 1) {
+            handleTimeUp();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [examStarted, timeRemaining, examCompleted]);
 
   const loadExam = async () => {
     try {
-      // Mock exam data for now - this would connect to real database
-      const mockExam = {
-        id: examId || '',
-        title: 'Examen Final - JavaScript Moderno',
-        description: 'Evaluación final del curso de JavaScript ES6+',
-        passing_score: 70,
-        max_attempts: 3,
-        time_limit_minutes: 60
-      };
-
-      const mockQuestions = [
-        {
-          id: '1',
-          question_text: '¿Cuál es la diferencia principal entre let y var en JavaScript?',
-          options: ['Let tiene scope de bloque', 'Var tiene scope de bloque', 'No hay diferencia', 'Let es más rápido'],
-          points: 10,
-          order_index: 1
-        },
-        {
-          id: '2', 
-          question_text: '¿Qué hace el operador spread (...) en JavaScript?',
-          options: ['Expande arrays u objetos', 'Suma números', 'Concatena strings', 'Compara valores'],
-          points: 10,
-          order_index: 2
-        }
-      ];
-
-      setExam(mockExam);
-      setQuestions(mockQuestions);
-      setTimeLeft(mockExam.time_limit_minutes * 60);
+      setLoading(true);
+      const result = await getExam(examId || '');
       
-      // Mock attempt ID
-      setAttemptId('mock-attempt-id');
+      if (result.data) {
+        setExam(result.data);
+        if (result.data.time_limit) {
+          setTimeRemaining(result.data.duration_minutes * 60);
+        }
+      } else {
+        // Mock data for development
+        const mockExam: Exam = {
+          id: examId || '',
+          title: 'Examen Final - Desarrollo Web',
+          description: 'Evaluación de conocimientos sobre React, JavaScript y desarrollo frontend',
+          course_id: '1',
+          course_title: 'Desarrollo Web Full Stack',
+          duration_minutes: 60,
+          total_questions: 10,
+          total_points: 100,
+          passing_score: 70,
+          attempts_allowed: 3,
+          time_limit: true,
+          instructions: 'Lee cuidadosamente cada pregunta antes de responder. Una vez iniciado el examen, no podrás pausarlo.',
+          questions: [
+            {
+              id: '1',
+              type: 'multiple_choice',
+              question: '¿Qué hook de React se utiliza para manejar el estado local en componentes funcionales?',
+              options: ['useEffect', 'useState', 'useContext', 'useReducer'],
+              correct_answer: 'useState',
+              points: 10,
+              explanation: 'useState es el hook básico para manejar estado local en componentes funcionales.'
+            },
+            {
+              id: '2',
+              type: 'multiple_select',
+              question: '¿Cuáles de las siguientes son ventajas de React? (Selecciona todas las correctas)',
+              options: [
+                'Virtual DOM para mejor rendimiento',
+                'Componentes reutilizables',
+                'Sintaxis JSX',
+                'Gestión automática de memoria'
+              ],
+              correct_answer: ['Virtual DOM para mejor rendimiento', 'Componentes reutilizables', 'Sintaxis JSX'],
+              points: 15,
+              explanation: 'React ofrece Virtual DOM, componentes reutilizables y JSX. La gestión de memoria es responsabilidad del navegador.'
+            },
+            {
+              id: '3',
+              type: 'text',
+              question: '¿Cuál es la diferencia entre props y state en React?',
+              points: 20,
+              explanation: 'Props son datos pasados desde componentes padre, inmutables. State es el estado interno del componente, mutable.'
+            },
+            {
+              id: '4',
+              type: 'multiple_choice',
+              question: '¿Qué método del ciclo de vida se ejecuta después de que el componente se monta?',
+              options: ['componentDidMount', 'componentWillMount', 'componentDidUpdate', 'componentWillUnmount'],
+              correct_answer: 'componentDidMount',
+              points: 10,
+              explanation: 'componentDidMount se ejecuta inmediatamente después de que el componente se monta en el DOM.'
+            },
+            {
+              id: '5',
+              type: 'essay',
+              question: 'Explica el concepto de "lifting state up" en React y proporciona un ejemplo práctico.',
+              points: 25,
+              explanation: 'Lifting state up significa mover el estado compartido al ancestro común más cercano de los componentes que lo necesitan.'
+            }
+          ]
+        };
+        setExam(mockExam);
+        setTimeRemaining(mockExam.duration_minutes * 60);
+      }
     } catch (error) {
       console.error('Error loading exam:', error);
-      toast({
-        title: "Error",
-        description: "No se pudo cargar el examen",
-        variant: "destructive"
-      });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAnswerChange = (questionId: string, answer: string) => {
+  const startExam = () => {
+    setExamStarted(true);
+    
+    // Initialize answers
+    const initialAnswers: Record<string, Answer> = {};
+    exam?.questions.forEach((question) => {
+      initialAnswers[question.id] = {
+        question_id: question.id,
+        answer: question.type === 'multiple_select' ? [] : '',
+        time_spent: 0
+      };
+    });
+    setAnswers(initialAnswers);
+  };
+
+  const handleAnswerChange = (questionId: string, answer: string | string[]) => {
     setAnswers(prev => ({
       ...prev,
-      [questionId]: answer
+      [questionId]: {
+        ...prev[questionId],
+        answer
+      }
     }));
   };
 
-  const handleSubmitExam = async () => {
-    if (!attemptId || isSubmitting) return;
-    
-    setIsSubmitting(true);
-    
+  const handleTimeUp = async () => {
+    if (!examCompleted) {
+      await submitExamAnswers();
+    }
+  };
+
+  const submitExamAnswers = async () => {
     try {
-      // Mock exam submission - this would connect to real database
-      const correctAnswers = {
-        '1': 'Let tiene scope de bloque',
-        '2': 'Expande arrays u objetos'
+      setExamCompleted(true);
+      const examData = {
+        exam_id: examId,
+        answers: Object.values(answers),
+        time_taken: exam?.time_limit ? (exam.duration_minutes * 60 - timeRemaining) : undefined
       };
 
-      let score = 0;
-      const totalQuestions = questions.length;
+      const result = await submitExam(examData);
       
-      Object.entries(answers).forEach(([questionId, userAnswer]) => {
-        if (correctAnswers[questionId] === userAnswer) {
-          score += 1;
-        }
-      });
-
-      const percentage = (score / totalQuestions) * 100;
-      const passed = percentage >= 70;
-
-      toast({
-        title: passed ? "¡Felicidades!" : "Examen completado",
-        description: passed 
-          ? `Has aprobado con ${percentage.toFixed(1)}%` 
-          : `Has obtenido ${percentage.toFixed(1)}%. Puedes intentarlo de nuevo.`,
-        variant: passed ? "default" : "destructive"
-      });
-
-      navigate(`/exam-results/${attemptId}`);
+      if (result.data) {
+        setExamResult(result.data);
+      } else {
+        // Mock result for development
+        const mockResult: ExamResult = {
+          id: 'result_1',
+          score: 75,
+          percentage: 75,
+          passed: true,
+          time_taken: 3200, // 53 minutes
+          answers: Object.values(answers),
+          feedback: 'Buen trabajo. Has demostrado un sólido entendimiento de los conceptos de React.',
+          certificate_id: 'cert_123'
+        };
+        setExamResult(mockResult);
+      }
     } catch (error) {
       console.error('Error submitting exam:', error);
-      toast({
-        title: "Error",
-        description: "No se pudo enviar el examen",
-        variant: "destructive"
-      });
-    } finally {
-      setIsSubmitting(false);
     }
+  };
+
+  const nextQuestion = () => {
+    if (exam && currentQuestionIndex < exam.questions.length - 1) {
+      setCurrentQuestionIndex(prev => prev + 1);
+    }
+  };
+
+  const previousQuestion = () => {
+    if (currentQuestionIndex > 0) {
+      setCurrentQuestionIndex(prev => prev - 1);
+    }
+  };
+
+  const goToQuestion = (index: number) => {
+    setCurrentQuestionIndex(index);
   };
 
   const formatTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const getAnsweredCount = () => {
+    return Object.values(answers).filter(answer => {
+      if (Array.isArray(answer.answer)) {
+        return answer.answer.length > 0;
+      }
+      return answer.answer.trim() !== '';
+    }).length;
+  };
+
+  const isAnswered = (questionId: string) => {
+    const answer = answers[questionId];
+    if (!answer) return false;
+    
+    if (Array.isArray(answer.answer)) {
+      return answer.answer.length > 0;
+    }
+    return answer.answer.trim() !== '';
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Cargando examen...</p>
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Cargando examen...</p>
         </div>
       </div>
     );
   }
 
-  if (!exam || questions.length === 0) {
+  if (!exam) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-          <h1 className="text-2xl font-bold mb-2">Examen no disponible</h1>
-          <p className="text-muted-foreground mb-4">No se pudo cargar el examen</p>
-          <Button onClick={() => navigate(-1)}>Volver</Button>
+      <div className="min-h-screen flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardContent className="text-center py-8">
+            <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Examen no encontrado</h3>
+            <p className="text-gray-600 mb-4">El examen solicitado no existe o no tienes acceso.</p>
+            <Button onClick={() => navigate('/dashboard')}>
+              Volver al Dashboard
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Exam completed - show results
+  if (examCompleted && examResult) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="container mx-auto px-4 max-w-4xl">
+          <Card className="mb-8">
+            <CardHeader className="text-center">
+              <div className="mx-auto mb-4">
+                {examResult.passed ? (
+                  <CheckCircle className="h-16 w-16 text-green-500" />
+                ) : (
+                  <AlertCircle className="h-16 w-16 text-red-500" />
+                )}
+              </div>
+              <CardTitle className="text-2xl">
+                {examResult.passed ? '¡Felicitaciones!' : 'Examen No Aprobado'}
+              </CardTitle>
+              <CardDescription>
+                {examResult.passed 
+                  ? 'Has aprobado el examen exitosamente' 
+                  : 'No has alcanzado la puntuación mínima requerida'
+                }
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-blue-600 mb-2">
+                    {examResult.score}/{exam.total_points}
+                  </div>
+                  <p className="text-gray-600">Puntuación</p>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-green-600 mb-2">
+                    {examResult.percentage}%
+                  </div>
+                  <p className="text-gray-600">Porcentaje</p>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-purple-600 mb-2">
+                    {formatTime(examResult.time_taken)}
+                  </div>
+                  <p className="text-gray-600">Tiempo Usado</p>
+                </div>
+              </div>
+
+              <div className="text-center mb-6">
+                <Progress 
+                  value={examResult.percentage} 
+                  className="w-full max-w-md mx-auto mb-2" 
+                />
+                <p className="text-sm text-gray-600">
+                  Puntuación mínima requerida: {exam.passing_score}%
+                </p>
+              </div>
+
+              {examResult.feedback && (
+                <div className="bg-blue-50 p-4 rounded-lg mb-6">
+                  <h4 className="font-semibold mb-2">Comentarios del Instructor:</h4>
+                  <p className="text-gray-700">{examResult.feedback}</p>
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <Button onClick={() => navigate(`/courses/${exam.course_id}`)}>
+                  <BookOpen className="h-4 w-4 mr-2" />
+                  Volver al Curso
+                </Button>
+                
+                {examResult.passed && examResult.certificate_id && (
+                  <Button variant="outline">
+                    <Award className="h-4 w-4 mr-2" />
+                    Ver Certificado
+                  </Button>
+                )}
+                
+                {!examResult.passed && (
+                  <Button 
+                    variant="outline"
+                    onClick={() => window.location.reload()}
+                  >
+                    Intentar de Nuevo
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
   }
 
-  const currentQuestion = questions[currentQuestionIndex];
-  const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
-  const answeredQuestions = Object.keys(answers).length;
+  // Exam not started - show instructions
+  if (!examStarted) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="container mx-auto px-4 max-w-4xl">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-2xl">{exam.title}</CardTitle>
+              <CardDescription>{exam.description}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <div className="space-y-4">
+                  <div className="flex items-center">
+                    <FileText className="h-5 w-5 text-gray-500 mr-3" />
+                    <span><strong>{exam.total_questions}</strong> preguntas</span>
+                  </div>
+                  <div className="flex items-center">
+                    <Timer className="h-5 w-5 text-gray-500 mr-3" />
+                    <span><strong>{exam.duration_minutes}</strong> minutos</span>
+                  </div>
+                  <div className="flex items-center">
+                    <Award className="h-5 w-5 text-gray-500 mr-3" />
+                    <span><strong>{exam.passing_score}%</strong> para aprobar</span>
+                  </div>
+                  <div className="flex items-center">
+                    <HelpCircle className="h-5 w-5 text-gray-500 mr-3" />
+                    <span><strong>{exam.attempts_allowed}</strong> intentos permitidos</span>
+                  </div>
+                </div>
+                
+                <div className="bg-yellow-50 p-4 rounded-lg">
+                  <h4 className="font-semibold mb-2 text-yellow-800">Instrucciones:</h4>
+                  <p className="text-yellow-700 text-sm">
+                    {exam.instructions || 'Lee cuidadosamente cada pregunta y selecciona la mejor respuesta.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-center">
+                <Button 
+                  onClick={startExam}
+                  size="lg"
+                  className="px-8"
+                >
+                  Iniciar Examen
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Exam in progress
+  const currentQuestion = exam.questions[currentQuestionIndex];
+  const progress = ((currentQuestionIndex + 1) / exam.questions.length) * 100;
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-3xl font-bold">{exam.title}</h1>
-            <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-              <div className="flex items-center">
-                <Clock className="h-4 w-4 mr-1" />
-                {formatTime(timeLeft)}
+    <div className="min-h-screen bg-gray-50">
+      {/* Header with timer and progress */}
+      <div className="bg-white border-b shadow-sm sticky top-0 z-10">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">{exam.title}</h2>
+              <p className="text-sm text-gray-600">
+                Pregunta {currentQuestionIndex + 1} de {exam.questions.length}
+              </p>
+            </div>
+            
+            <div className="flex items-center space-x-6">
+              <div className="text-center">
+                <div className="text-sm text-gray-600">Respondidas</div>
+                <div className="font-semibold">
+                  {getAnsweredCount()}/{exam.questions.length}
+                </div>
               </div>
-              <div className="flex items-center">
-                <CheckCircle2 className="h-4 w-4 mr-1" />
-                {answeredQuestions}/{questions.length}
-              </div>
+              
+              {exam.time_limit && (
+                <div className="text-center">
+                  <div className="text-sm text-gray-600">Tiempo Restante</div>
+                  <div className={`font-semibold ${timeRemaining < 300 ? 'text-red-600' : 'text-gray-900'}`}>
+                    <Clock className="h-4 w-4 inline mr-1" />
+                    {formatTime(timeRemaining)}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-          <Progress value={progress} className="h-2" />
+          
+          <Progress value={progress} className="mt-4" />
         </div>
+      </div>
 
+      <div className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Question Navigation */}
+          {/* Question Navigation Sidebar */}
           <div className="lg:col-span-1">
-            <Card>
+            <Card className="sticky top-24">
               <CardHeader>
                 <CardTitle className="text-lg">Navegación</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-5 gap-2">
-                  {questions.map((_, index) => (
+                <div className="grid grid-cols-5 lg:grid-cols-4 gap-2">
+                  {exam.questions.map((question, index) => (
                     <Button
-                      key={index}
-                      variant={
-                        currentQuestionIndex === index 
-                          ? "default" 
-                          : answers[questions[index].id] 
-                            ? "outline" 
-                            : "ghost"
-                      }
+                      key={`navigation-${question.id}`}
+                      variant={currentQuestionIndex === index ? "default" : "outline"}
                       size="sm"
-                      onClick={() => setCurrentQuestionIndex(index)}
-                      className="aspect-square"
+                      className={`
+                        relative h-10 w-10 p-0
+                        ${isAnswered(question.id) 
+                          ? 'bg-green-100 border-green-300 text-green-700 hover:bg-green-200' 
+                          : ''
+                        }
+                      `}
+                      onClick={() => goToQuestion(index)}
+                      aria-label={`Ir a pregunta ${index + 1}${isAnswered(question.id) ? ' (respondida)' : ''}`}
                     >
                       {index + 1}
+                      {isAnswered(question.id) && (
+                        <CheckCircle className="absolute -top-1 -right-1 h-3 w-3 text-green-600" />
+                      )}
                     </Button>
                   ))}
-                </div>
-                
-                <div className="mt-6 pt-6 border-t space-y-4">
-                  <div className="text-sm">
-                    <div className="flex justify-between">
-                      <span>Respondidas:</span>
-                      <span>{answeredQuestions}/{questions.length}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Tiempo restante:</span>
-                      <span className={timeLeft < 300 ? "text-destructive font-medium" : ""}>
-                        {formatTime(timeLeft)}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <Button 
-                    onClick={handleSubmitExam} 
-                    disabled={isSubmitting || answeredQuestions === 0}
-                    className="w-full"
-                    variant={answeredQuestions === questions.length ? "default" : "outline"}
-                  >
-                    {isSubmitting ? "Enviando..." : "Enviar Examen"}
-                  </Button>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Current Question */}
+          {/* Main Question Area */}
           <div className="lg:col-span-3">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>Pregunta {currentQuestionIndex + 1} de {questions.length}</span>
-                  <span className="text-sm font-normal text-muted-foreground">
-                    {currentQuestion.points} punto{currentQuestion.points !== 1 ? 's' : ''}
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="text-lg leading-relaxed">
-                  {currentQuestion.question_text}
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <Badge variant="outline" className="mb-2">
+                      {currentQuestion.type.replace('_', ' ').toUpperCase()}
+                    </Badge>
+                    <CardTitle className="text-xl mb-2">
+                      Pregunta {currentQuestionIndex + 1}
+                    </CardTitle>
+                    <p className="text-gray-700 leading-relaxed">
+                      {currentQuestion.question}
+                    </p>
+                  </div>
+                  <Badge variant="secondary">
+                    {currentQuestion.points} pts
+                  </Badge>
                 </div>
+              </CardHeader>
+              
+              <CardContent>
+                {/* Multiple Choice */}
+                {currentQuestion.type === 'multiple_choice' && (
+                  <RadioGroup
+                    value={answers[currentQuestion.id]?.answer as string || ''}
+                    onValueChange={(value) => handleAnswerChange(currentQuestion.id, value)}
+                  >
+                    {currentQuestion.options?.map((option, index) => (
+                      <div key={`option-${currentQuestion.id}-${index}`} className="flex items-center space-x-2 p-3 rounded-lg hover:bg-gray-50">
+                        <RadioGroupItem value={option} id={`q${currentQuestion.id}_${index}`} />
+                        <Label htmlFor={`q${currentQuestion.id}_${index}`} className="flex-1 cursor-pointer">
+                          {option}
+                        </Label>
+                      </div>
+                    ))}
+                  </RadioGroup>
+                )}
 
-                <RadioGroup
-                  value={answers[currentQuestion.id] || ""}
-                  onValueChange={(value) => handleAnswerChange(currentQuestion.id, value)}
-                >
-                  {currentQuestion.options.map((option, index) => (
-                    <div key={index} className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-muted/50">
-                      <RadioGroupItem value={option} id={`${currentQuestion.id}-${index}`} />
-                      <Label 
-                        htmlFor={`${currentQuestion.id}-${index}`}
-                        className="flex-1 cursor-pointer"
-                      >
-                        {option}
-                      </Label>
-                    </div>
-                  ))}
-                </RadioGroup>
+                {/* Multiple Select */}
+                {currentQuestion.type === 'multiple_select' && (
+                  <div className="space-y-3">
+                    {currentQuestion.options?.map((option, index) => (
+                      <div key={`multi-option-${currentQuestion.id}-${index}`} className="flex items-center space-x-2 p-3 rounded-lg hover:bg-gray-50">
+                        <Checkbox
+                          id={`q${currentQuestion.id}_${index}`}
+                          checked={(answers[currentQuestion.id]?.answer as string[] || []).includes(option)}
+                          onCheckedChange={(checked) => {
+                            const currentAnswers = answers[currentQuestion.id]?.answer as string[] || [];
+                            const newAnswers = checked
+                              ? [...currentAnswers, option]
+                              : currentAnswers.filter(a => a !== option);
+                            handleAnswerChange(currentQuestion.id, newAnswers);
+                          }}
+                        />
+                        <Label htmlFor={`q${currentQuestion.id}_${index}`} className="flex-1 cursor-pointer">
+                          {option}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
-                <div className="flex justify-between pt-6">
+                {/* Text Answer */}
+                {(currentQuestion.type === 'text' || currentQuestion.type === 'essay') && (
+                  <Textarea
+                    value={answers[currentQuestion.id]?.answer as string || ''}
+                    onChange={(e) => handleAnswerChange(currentQuestion.id, e.target.value)}
+                    placeholder="Escribe tu respuesta aquí..."
+                    rows={currentQuestion.type === 'essay' ? 8 : 4}
+                    className="w-full"
+                  />
+                )}
+
+                {/* Navigation Buttons */}
+                <div className="flex justify-between items-center mt-8 pt-6 border-t">
                   <Button
                     variant="outline"
-                    onClick={() => setCurrentQuestionIndex(Math.max(0, currentQuestionIndex - 1))}
+                    onClick={previousQuestion}
                     disabled={currentQuestionIndex === 0}
                   >
+                    <ArrowLeft className="h-4 w-4 mr-2" />
                     Anterior
                   </Button>
-                  <Button
-                    onClick={() => setCurrentQuestionIndex(Math.min(questions.length - 1, currentQuestionIndex + 1))}
-                    disabled={currentQuestionIndex === questions.length - 1}
-                  >
-                    Siguiente
-                  </Button>
+
+                  <div className="flex space-x-4">
+                    {currentQuestionIndex === exam.questions.length - 1 ? (
+                      <Button
+                        onClick={submitExamAnswers}
+                        disabled={submitting}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        {submitting ? 'Enviando...' : 'Finalizar Examen'}
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={nextQuestion}
+                        disabled={currentQuestionIndex === exam.questions.length - 1}
+                      >
+                        Siguiente
+                        <ArrowRight className="h-4 w-4 ml-2" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>

@@ -206,7 +206,7 @@ const FAQ = () => {
                 <Accordion type="single" collapsible className="space-y-4">
                   {filteredFaqs.map((faq, index) => (
                     <AccordionItem 
-                      key={index} 
+                      key={`faq-${faq.question.slice(0, 20)}-${index}`} 
                       value={`item-${index}`}
                       className="bg-white border border-gray-200 rounded-lg px-6"
                     >

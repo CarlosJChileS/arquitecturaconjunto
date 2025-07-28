@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import AdminProtectedRoute from "@/components/AdminProtectedRoute";
 import Index from "./pages/Index";
 import Courses from "./pages/Courses";
 import CourseDetail from "./pages/CourseDetail";
@@ -17,7 +18,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Contact from "./pages/Contact";
 import About from "./pages/About";
-import FAQ from "./pages/FAQ";
+import FAQPage from "./pages/FAQ";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminCourseEditor from "./pages/AdminCourseEditor";
@@ -45,7 +46,7 @@ const App = () => (
               <Route path="/register" element={<Register />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="/about" element={<About />} />
-              <Route path="/faq" element={<FAQ />} />
+              <Route path="/faq" element={<FAQPage />} />
               <Route path="/subscription" element={<Subscription />} />
               <Route 
                 path="/dashboard" 
@@ -72,12 +73,54 @@ const App = () => (
                 } 
               />
               <Route path="/admin/login" element={<AdminLogin />} />
-              <Route path="/admin/dashboard" element={<AdminDashboard />} />
-              <Route path="/admin/courses/:id" element={<AdminCourseEditor />} />
-              <Route path="/admin/users" element={<AdminUsers />} />
-              <Route path="/exam/:examId" element={<ExamPage />} />
-              <Route path="/exam-results/:attemptId" element={<ExamResults />} />
-              <Route path="/certificate/:certificateNumber" element={<CertificateView />} />
+              <Route 
+                path="/admin/dashboard" 
+                element={
+                  <AdminProtectedRoute>
+                    <AdminDashboard />
+                  </AdminProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/admin/courses/:id" 
+                element={
+                  <AdminProtectedRoute>
+                    <AdminCourseEditor />
+                  </AdminProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/admin/users" 
+                element={
+                  <AdminProtectedRoute>
+                    <AdminUsers />
+                  </AdminProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/exam/:examId" 
+                element={
+                  <ProtectedRoute>
+                    <ExamPage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/exam-results/:attemptId" 
+                element={
+                  <ProtectedRoute>
+                    <ExamResults />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/certificate/:certificateNumber" 
+                element={
+                  <ProtectedRoute>
+                    <CertificateView />
+                  </ProtectedRoute>
+                } 
+              />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

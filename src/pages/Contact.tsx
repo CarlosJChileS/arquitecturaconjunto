@@ -1,16 +1,16 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { 
-  Mail, Phone, MapPin, Clock, MessageCircle, 
-  Send, CheckCircle2, Headphones, Globe, Users
+  Mail, Phone, MapPin, 
+  Send, CheckCircle2, Headphones, ArrowLeft
 } from "lucide-react";
 
 const Contact = () => {
@@ -49,8 +49,15 @@ const Contact = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      
-      <main>
+      <main className="container mx-auto px-4 py-8">
+        {/* Navigation breadcrumb */}
+        <div className="mb-6">
+          <Link to="/" className="inline-flex items-center text-muted-foreground hover:text-primary transition-colors">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Volver al inicio
+          </Link>
+        </div>
+        
         {/* Hero Section - Udemy style */}
         <section className="bg-gray-900 text-white py-16">
           <div className="container mx-auto px-4">

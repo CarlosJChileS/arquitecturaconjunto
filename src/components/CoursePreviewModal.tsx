@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, Play, Lock, CheckCircle } from "lucide-react";
+import { X, Play, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";

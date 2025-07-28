@@ -33,18 +33,28 @@ const Header = () => {
             <Link to="/courses" className="text-foreground hover:text-primary transition-colors">
               Cursos
             </Link>
-            <Link to="/dashboard" className="text-foreground hover:text-primary transition-colors">
-              Dashboard
+            <Link to="/about" className="text-foreground hover:text-primary transition-colors">
+              Acerca de
             </Link>
-            <Link to="/subscription" className="text-foreground hover:text-primary transition-colors">
-              Suscripción
-            </Link>
-            <Link to="/profile" className="text-foreground hover:text-primary transition-colors">
-              Perfil
-            </Link>
-            <a href="#contacto" className="text-foreground hover:text-primary transition-colors">
+            <Link to="/contact" className="text-foreground hover:text-primary transition-colors">
               Contacto
-            </a>
+            </Link>
+            <Link to="/faq" className="text-foreground hover:text-primary transition-colors">
+              FAQ
+            </Link>
+            {user && (
+              <>
+                <Link to="/dashboard" className="text-foreground hover:text-primary transition-colors">
+                  Dashboard
+                </Link>
+                <Link to="/subscription" className="text-foreground hover:text-primary transition-colors">
+                  Suscripción
+                </Link>
+                <Link to="/profile" className="text-foreground hover:text-primary transition-colors">
+                  Perfil
+                </Link>
+              </>
+            )}
           </nav>
 
           <div className="flex items-center space-x-4">
@@ -91,11 +101,105 @@ const Header = () => {
               </>
             )}
             
-            <Button variant="ghost" size="sm" className="md:hidden">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="md:hidden"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+            >
               <Menu className="h-5 w-5" />
             </Button>
           </div>
         </div>
+        
+        {/* Mobile menu */}
+        {isMenuOpen && (
+          <div className="md:hidden mt-4 pb-4 border-t border-border">
+            <nav className="flex flex-col space-y-4 pt-4">
+              <Link 
+                to="/courses" 
+                className="text-foreground hover:text-primary transition-colors"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Cursos
+              </Link>
+              <Link 
+                to="/about" 
+                className="text-foreground hover:text-primary transition-colors"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Acerca de
+              </Link>
+              <Link 
+                to="/contact" 
+                className="text-foreground hover:text-primary transition-colors"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Contacto
+              </Link>
+              <Link 
+                to="/faq" 
+                className="text-foreground hover:text-primary transition-colors"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                FAQ
+              </Link>
+              {user && (
+                <>
+                  <Link 
+                    to="/dashboard" 
+                    className="text-foreground hover:text-primary transition-colors"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Dashboard
+                  </Link>
+                  <Link 
+                    to="/subscription" 
+                    className="text-foreground hover:text-primary transition-colors"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Suscripción
+                  </Link>
+                  <Link 
+                    to="/profile" 
+                    className="text-foreground hover:text-primary transition-colors"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Perfil
+                  </Link>
+                </>
+              )}
+              {!user && (
+                <div className="flex flex-col space-y-2 pt-4">
+                  <Link to="/login" onClick={() => setIsMenuOpen(false)}>
+                    <Button variant="outline" size="sm" className="w-full">
+                      Iniciar Sesión
+                    </Button>
+                  </Link>
+                  <Link to="/register" onClick={() => setIsMenuOpen(false)}>
+                    <Button size="sm" className="w-full bg-gradient-primary hover:opacity-90">
+                      Comenzar Gratis
+                    </Button>
+                  </Link>
+                </div>
+              )}
+              {user && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => {
+                    handleLogout();
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full flex items-center justify-center space-x-2"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span>Salir</span>
+                </Button>
+              )}
+            </nav>
+          </div>
+        )}
       </div>
     </header>
   );
