@@ -23,9 +23,21 @@ dist-ssr
 *.sln
 *.sw?
 
-# Environment variables
+# Environment variables and secrets
 .env
 .env.local
 .env.production
 .env.development
 .env.staging
+.env.*
+*.env
+
+# Backup files that might contain secrets
+*.backup
+*.bak
+config.local.*
+
+# Temporary files with potential secrets
+temp/
+tmp/
+*.tmp

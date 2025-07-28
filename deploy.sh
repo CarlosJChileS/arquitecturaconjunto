@@ -6,14 +6,51 @@
 set -e
 
 # ====== CONFIGURACIÓN - AJUSTA ESTOS VALORES ======
-PROJECT_ID="tu-project-id"
-SERVICE_NAME="learnpro-app"
-REGION="us-central1"
+# Opción 1: Define las variables aquí (NO RECOMENDADO para producción)
+# PROJECT_ID="tu-project-id"
+# SERVICE_NAME="learnpro-app"
+# REGION="us-central1"
+
+# Opción 2: Usa variables de entorno del sistema (RECOMENDADO)
+# Ejecuta: export PROJECT_ID="tu-project-id" antes de ejecutar este script
+# O crea un archivo .env y ejecuta: source .env
+
+# Verificar que las variables requeridas estén definidas
+if [ -z "$PROJECT_ID" ]; then
+    echo "❌ Error: Variable PROJECT_ID no está definida"
+    echo "💡 Opción 1: export PROJECT_ID='tu-project-id'"
+    echo "💡 Opción 2: Crea un archivo .env basado en .env.example y ejecuta: source .env"
+    exit 1
+fi
+
+if [ -z "$SERVICE_NAME" ]; then
+    SERVICE_NAME="learnpro-app"
+    echo "📝 Usando SERVICE_NAME por defecto: $SERVICE_NAME"
+fi
+
+if [ -z "$REGION" ]; then
+    REGION="us-central1"
+    echo "📝 Usando REGION por defecto: $REGION"
+fi
 
 # Variables de entorno para la aplicación
-SUPABASE_URL="https://xfuhbjqqlgfxxkjvezhy.supabase.co"
-SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmdWhianFxbGdmeHhranZlemh5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMwOTQ2MzgsImV4cCI6MjA2ODY3MDYzOH0.EFZFZyDF7eR1rkXCgZq-Q-B96I_H9XP1ulQsyzAyVOI"
-STRIPE_PUBLISHABLE_KEY="pk_test_51RnmE4CBD94NZhoQpLTmmEkmqwe9NxZVTbnVYZ5RYHBteMUawAHaO6U07teBTAVOzPQ36OK4LY7JRaZhA7UQ3AX300wfY5Xb4q"
+if [ -z "$VITE_SUPABASE_URL" ]; then
+    echo "❌ Error: Variable VITE_SUPABASE_URL no está definida"
+    echo "💡 Ejecuta: export VITE_SUPABASE_URL='https://tu-proyecto.supabase.co'"
+    exit 1
+fi
+
+if [ -z "$VITE_SUPABASE_ANON_KEY" ]; then
+    echo "❌ Error: Variable VITE_SUPABASE_ANON_KEY no está definida"
+    echo "💡 Ejecuta: export VITE_SUPABASE_ANON_KEY='tu_clave_anon'"
+    exit 1
+fi
+
+if [ -z "$VITE_STRIPE_PUBLISHABLE_KEY" ]; then
+    echo "❌ Error: Variable VITE_STRIPE_PUBLISHABLE_KEY no está definida"
+    echo "💡 Ejecuta: export VITE_STRIPE_PUBLISHABLE_KEY='pk_test_tu_clave'"
+    exit 1
+fi
 # ================================================
 
 IMAGE_NAME="gcr.io/$PROJECT_ID/$SERVICE_NAME"
@@ -67,9 +104,9 @@ gcloud run deploy $SERVICE_NAME \
   --max-instances 10 \
   --timeout 300 \
   --concurrency 80 \
-  --set-env-vars "VITE_SUPABASE_URL=$SUPABASE_URL" \
-  --set-env-vars "VITE_SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" \
-  --set-env-vars "VITE_STRIPE_PUBLISHABLE_KEY=$STRIPE_PUBLISHABLE_KEY" \
+  --set-env-vars "VITE_SUPABASE_URL=$VITE_SUPABASE_URL" \
+  --set-env-vars "VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY" \
+  --set-env-vars "VITE_STRIPE_PUBLISHABLE_KEY=$VITE_STRIPE_PUBLISHABLE_KEY" \
   --set-env-vars "NODE_ENV=production" \
   --project $PROJECT_ID
 

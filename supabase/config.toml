@@ -1,4 +1,4 @@
-project_id = "xfuhbjqqlgfxxkjvezhy"
+project_id = "tu-project-id"
 
 [functions.course-enrollment]
 verify_jwt = true

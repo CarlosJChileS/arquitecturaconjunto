@@ -12,13 +12,19 @@ Una plataforma moderna de cursos online con panel de administración, sistema de
    gcloud config set project TU_PROJECT_ID
    ```
 
-2. **Editar script de despliegue:**
-   Abre `deploy.sh` (Linux/Mac) o `deploy.ps1` (Windows) y cambia:
+2. **Configurar variables de entorno:**
    ```bash
-   PROJECT_ID="tu-project-id-real"        # ⚠️ OBLIGATORIO
-   SUPABASE_URL="tu-url-supabase"         # ⚠️ OBLIGATORIO  
-   SUPABASE_ANON_KEY="tu-anon-key"        # ⚠️ OBLIGATORIO
+   # Copia el archivo de ejemplo
+   cp .env.example .env
+   
+   # Edita .env con tus valores reales (NO subas este archivo al repo)
+   nano .env
+   
+   # Carga las variables
+   source .env  # Linux/Mac
    ```
+   
+   **🔐 Ver guía completa:** [VARIABLES-ENTORNO.md](./VARIABLES-ENTORNO.md)
 
 3. **Ejecutar despliegue:**
    ```bash

@@ -2,14 +2,56 @@
 # Configuración automática - solo ajusta las variables al inicio
 
 # ====== CONFIGURACIÓN - AJUSTA ESTOS VALORES ======
-$PROJECT_ID = "tu-project-id"
-$SERVICE_NAME = "learnpro-app"
-$REGION = "us-central1"
+# Opción 1: Define las variables aquí (NO RECOMENDADO para producción)
+# $PROJECT_ID = "tu-project-id"
+# $SERVICE_NAME = "learnpro-app"
+# $REGION = "us-central1"
+
+# Opción 2: Usa variables de entorno del sistema (RECOMENDADO)
+# Ejecuta: $env:PROJECT_ID = "tu-project-id" antes de ejecutar este script
+# O carga desde un archivo .env
+
+# Verificar que las variables requeridas estén definidas
+if (-not $env:PROJECT_ID) {
+    Write-Host "❌ Error: Variable PROJECT_ID no está definida" -ForegroundColor Red
+    Write-Host "💡 Opción 1: `$env:PROJECT_ID = 'tu-project-id'" -ForegroundColor Yellow
+    Write-Host "💡 Opción 2: Crea un archivo .env basado en .env.example" -ForegroundColor Yellow
+    exit 1
+}
+$PROJECT_ID = $env:PROJECT_ID
+
+if (-not $env:SERVICE_NAME) {
+    $SERVICE_NAME = "learnpro-app"
+    Write-Host "📝 Usando SERVICE_NAME por defecto: $SERVICE_NAME" -ForegroundColor Yellow
+} else {
+    $SERVICE_NAME = $env:SERVICE_NAME
+}
+
+if (-not $env:REGION) {
+    $REGION = "us-central1"
+    Write-Host "📝 Usando REGION por defecto: $REGION" -ForegroundColor Yellow
+} else {
+    $REGION = $env:REGION
+}
 
 # Variables de entorno para la aplicación
-$SUPABASE_URL = "https://xfuhbjqqlgfxxkjvezhy.supabase.co"
-$SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmdWhianFxbGdmeHhranZlemh5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMwOTQ2MzgsImV4cCI6MjA2ODY3MDYzOH0.EFZFZyDF7eR1rkXCgZq-Q-B96I_H9XP1ulQsyzAyVOI"
-$STRIPE_PUBLISHABLE_KEY = "pk_test_51RnmE4CBD94NZhoQpLTmmEkmqwe9NxZVTbnVYZ5RYHBteMUawAHaO6U07teBTAVOzPQ36OK4LY7JRaZhA7UQ3AX300wfY5Xb4q"
+if (-not $env:VITE_SUPABASE_URL) {
+    Write-Host "❌ Error: Variable VITE_SUPABASE_URL no está definida" -ForegroundColor Red
+    Write-Host "💡 Ejecuta: `$env:VITE_SUPABASE_URL = 'https://tu-proyecto.supabase.co'" -ForegroundColor Yellow
+    exit 1
+}
+
+if (-not $env:VITE_SUPABASE_ANON_KEY) {
+    Write-Host "❌ Error: Variable VITE_SUPABASE_ANON_KEY no está definida" -ForegroundColor Red
+    Write-Host "💡 Ejecuta: `$env:VITE_SUPABASE_ANON_KEY = 'tu_clave_anon'" -ForegroundColor Yellow
+    exit 1
+}
+
+if (-not $env:VITE_STRIPE_PUBLISHABLE_KEY) {
+    Write-Host "❌ Error: Variable VITE_STRIPE_PUBLISHABLE_KEY no está definida" -ForegroundColor Red
+    Write-Host "💡 Ejecuta: `$env:VITE_STRIPE_PUBLISHABLE_KEY = 'pk_test_tu_clave'" -ForegroundColor Yellow
+    exit 1
+}
 # ================================================
 
 $IMAGE_NAME = "gcr.io/$PROJECT_ID/$SERVICE_NAME"
@@ -67,9 +109,9 @@ try {
         --max-instances 10 `
         --timeout 300 `
         --concurrency 80 `
-        --set-env-vars "VITE_SUPABASE_URL=$SUPABASE_URL" `
-        --set-env-vars "VITE_SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" `
-        --set-env-vars "VITE_STRIPE_PUBLISHABLE_KEY=$STRIPE_PUBLISHABLE_KEY" `
+        --set-env-vars "VITE_SUPABASE_URL=$($env:VITE_SUPABASE_URL)" `
+        --set-env-vars "VITE_SUPABASE_ANON_KEY=$($env:VITE_SUPABASE_ANON_KEY)" `
+        --set-env-vars "VITE_STRIPE_PUBLISHABLE_KEY=$($env:VITE_STRIPE_PUBLISHABLE_KEY)" `
         --set-env-vars "NODE_ENV=production" `
         --project $PROJECT_ID
 
