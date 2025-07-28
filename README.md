@@ -1,73 +1,192 @@
-# Welcome to your Lovable project
+# 🎓 LearnPro - Plataforma de Cursos Online
 
-## Project info
+Una plataforma moderna de cursos online con panel de administración, sistema de suscripciones y pagos integrados.
 
-**URL**: https://lovable.dev/projects/6a4a05c4-befa-49b2-b21a-882f2762f3ab
+## 📋 Requisitos Previos
 
-## How can I edit this code?
+Antes de comenzar, asegúrate de tener instalado:
 
-There are several ways of editing your application.
+- **Node.js** (versión 18 o superior) - [Descargar aquí](https://nodejs.org/)
+- **npm** (incluido con Node.js) o **yarn**
+- **Git** - [Descargar aquí](https://git-scm.com/)
 
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/6a4a05c4-befa-49b2-b21a-882f2762f3ab) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+### Verificar instalación:
+```bash
+node --version
+npm --version
+git --version
 ```
 
-**Edit a file directly in GitHub**
+## 🚀 Instalación y Configuración
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### 1. Clonar el repositorio
+```bash
+git clone https://github.com/CarlosJChileS/arquitecturaconjunto.git
+cd arquitecturaconjunto
+```
 
-**Use GitHub Codespaces**
+### 2. Instalar dependencias
+```bash
+npm install
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+### 3. Configurar variables de entorno
+Crea un archivo `.env.local` en la raíz del proyecto con las siguientes variables:
 
-## What technologies are used for this project?
+```bash
+# Supabase Configuration
+VITE_SUPABASE_URL=tu_supabase_url
+VITE_SUPABASE_ANON_KEY=tu_supabase_anon_key
 
-This project is built with:
+# Variables para Supabase Edge Functions
+SUPABASE_URL=tu_supabase_url
+SUPABASE_ANON_KEY=tu_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=tu_service_role_key
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+# Stripe Configuration (Opcional - para pagos)
+STRIPE_SECRET_KEY=tu_stripe_secret_key
+STRIPE_WEBHOOK_SECRET=tu_stripe_webhook_secret
+VITE_STRIPE_PUBLISHABLE_KEY=tu_stripe_publishable_key
 
-## How can I deploy this project?
+# PayPal Configuration (Opcional - para pagos)
+PAYPAL_CLIENT_ID=tu_paypal_client_id
+PAYPAL_CLIENT_SECRET=tu_paypal_client_secret
 
-Simply open [Lovable](https://lovable.dev/projects/6a4a05c4-befa-49b2-b21a-882f2762f3ab) and click on Share -> Publish.
+# Resend Email Service (Opcional - para emails)
+RESEND_API_KEY=tu_resend_api_key
 
-## Can I connect a custom domain to my Lovable project?
+# App Configuration
+VITE_APP_URL=http://localhost:8083
+```
 
-Yes, you can!
+### 4. Configurar Supabase (Base de datos)
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+1. Ve a [Supabase](https://supabase.com/) y crea un nuevo proyecto
+2. Copia la URL y las claves desde el dashboard de Supabase
+3. Ejecuta las migraciones SQL desde la carpeta `supabase/migrations/`
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+## 🏃‍♂️ Ejecutar el Proyecto
+
+### Desarrollo
+```bash
+npm run dev
+```
+La aplicación se abrirá en: http://localhost:8083
+
+### Producción
+```bash
+npm run build
+npm run preview
+```
+
+## 🔑 Credenciales de Administrador
+
+Para acceder al panel de administración:
+- URL: http://localhost:8083/admin-login
+- Email: carlosjchiles@gmail.com
+- Contraseña: (configurar en Supabase Auth)
+
+## 📁 Estructura del Proyecto
+
+```
+arquitecturaconjunto/
+├── src/
+│   ├── components/          # Componentes reutilizables
+│   │   ├── ui/             # Componentes de UI (shadcn)
+│   │   └── ...
+│   ├── pages/              # Páginas de la aplicación
+│   │   ├── AdminLogin.tsx  # Login de administrador
+│   │   ├── AdminDashboard.tsx
+│   │   ├── AdminCourseEditor.tsx
+│   │   └── ...
+│   ├── contexts/           # Contextos de React
+│   ├── hooks/              # Hooks personalizados
+│   ├── lib/               # Utilidades
+│   └── integrations/      # Integraciones (Supabase)
+├── supabase/              # Configuración de Supabase
+│   ├── functions/         # Edge Functions
+│   └── migrations/        # Migraciones SQL
+├── public/                # Archivos estáticos
+└── ...
+```
+
+## 🛠️ Tecnologías Utilizadas
+
+- **Frontend:**
+  - React 18 + TypeScript
+  - Vite (Build tool)
+  - Tailwind CSS
+  - shadcn/ui (Componentes)
+  - React Router (Navegación)
+  - React Query (Estado del servidor)
+
+- **Backend:**
+  - Supabase (Base de datos + Auth)
+  - Supabase Edge Functions
+  - PostgreSQL
+
+- **Pagos:**
+  - Stripe
+  - PayPal
+
+- **Email:**
+  - Resend
+
+## 🌟 Características
+
+- ✅ Sistema de autenticación (usuarios y admin)
+- ✅ Panel de administración completo
+- ✅ Editor de cursos avanzado
+- ✅ Sistema de suscripciones
+- ✅ Procesamiento de pagos
+- ✅ Gestión de usuarios
+- ✅ Responsive design
+- ✅ Dashboard de analytics
+
+## 📝 Scripts Disponibles
+
+```bash
+npm run dev          # Servidor de desarrollo
+npm run build        # Build para producción
+npm run preview      # Preview del build
+npm run lint         # Linter
+npm run type-check   # Verificación de tipos
+```
+
+## 🔧 Configuración Adicional
+
+### Base de datos Supabase
+1. Ejecutar migraciones en: `supabase/migrations/`
+2. Configurar Row Level Security (RLS)
+3. Subir Edge Functions: `supabase/functions/`
+
+### Configurar Stripe (Opcional)
+1. Crear cuenta en Stripe
+2. Configurar webhooks
+3. Agregar claves en `.env.local`
+
+## 🐛 Solución de Problemas
+
+### Puerto en uso
+Si el puerto 8083 está ocupado, Vite automáticamente usará el siguiente disponible.
+
+### Error de conexión a Supabase
+Verifica que las variables de entorno estén correctamente configuradas.
+
+### Problemas de instalación
+```bash
+# Limpiar cache y reinstalar
+rm -rf node_modules package-lock.json
+npm install
+```
+
+## 📞 Soporte
+
+Si tienes problemas o preguntas:
+1. Revisa la documentación de [Supabase](https://supabase.com/docs)
+2. Consulta la documentación de [Vite](https://vitejs.dev/)
+3. Abre un issue en este repositorio
+
+---
+
+**Desarrollado con ❤️ usando React + Supabase**
