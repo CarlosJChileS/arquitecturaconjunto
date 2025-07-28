@@ -18,46 +18,59 @@ const AdminLogin = () => {
   const { signIn, user, profile, loading } = useAuth();
 
   useEffect(() => {
-    console.log('AdminLogin useEffect - User:', user?.email, 'Profile:', profile?.role, 'Loading:', loading);
-    
-    // Si ya está logueado como admin, redirigir
-    if (user && profile?.role === 'admin') {
-      console.log('Already logged in as admin, redirecting');
-      navigate("/admin", { replace: true });
-    } else if (user && profile && profile.role !== 'admin') {
-      console.log('User logged in but not admin, role:', profile.role);
-      toast({
-        title: "Acceso denegado",
-        description: "No tienes permisos de administrador",
-        variant: "destructive"
-      });
+    // Si ya está logueado y tiene perfil cargado
+    if (user && profile && !loading) {
+      if (profile.role === 'admin') {
+        console.log('Usuario admin autenticado, redirigiendo al dashboard');
+        navigate("/admin", { replace: true });
+      } else {
+        console.log('Usuario logueado pero no es admin, rol:', profile.role);
+        toast({
+          title: "Acceso denegado",
+          description: "No tienes permisos de administrador",
+          variant: "destructive"
+        });
+      }
     }
-  }, [user, profile, loading, navigate]);
+  }, [user, profile, loading, navigate, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!email || !password) {
+      toast({
+        title: "Error",
+        description: "Por favor completa todos los campos",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
       const { error } = await signIn(email, password);
 
       if (error) {
+        console.error('Login error:', error);
         toast({
-          title: "Acceso denegado",
+          title: "Error de autenticación",
           description: error.message || "Credenciales incorrectas",
           variant: "destructive"
         });
-      } else {
-        // El useEffect se encargará de la redirección cuando se cargue el perfil
-        toast({
-          title: "Acceso autorizado",
-          description: "Verificando permisos de administrador..."
-        });
+        return;
       }
-    } catch (err) {
+
       toast({
-        title: "Error",
-        description: "Error al iniciar sesión. Inténtalo de nuevo.",
+        title: "Autenticación exitosa",
+        description: "Verificando permisos de administrador...",
+      });
+
+    } catch (error) {
+      console.error('Unexpected error:', error);
+      toast({
+        title: "Error inesperado",
+        description: "Ha ocurrido un error durante el login",
         variant: "destructive"
       });
     } finally {
@@ -65,94 +78,112 @@ const AdminLogin = () => {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-background flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-primary rounded-full mb-4">
-            <Shield className="h-10 w-10 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Panel de Administración</h1>
-          <p className="text-muted-foreground">Acceso exclusivo para administradores</p>
-        </div>
-
-        {/* Login Form */}
-        <Card className="shadow-glow border-border/50">
-          <CardHeader className="text-center">
-            <CardTitle>Iniciar Sesión</CardTitle>
-            <CardDescription>
-              Ingresa tus credenciales de administrador
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email administrativo</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="admin@learnpro.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="password">Contraseña</Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Introduce tu contraseña"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </Button>
-                </div>
-              </div>
-
-              <Button type="submit" className="w-full bg-gradient-primary" disabled={isLoading}>
-                {isLoading ? "Verificando..." : "Acceder al Panel"}
-              </Button>
-            </form>
-
-            {/* Demo Credentials */}
-            <div className="mt-6 p-4 bg-muted/50 rounded-lg border border-border">
-              <h4 className="font-medium text-sm mb-2">🔑 Credenciales de Demo:</h4>
-              <div className="text-xs text-muted-foreground space-y-1">
-                <p><strong>Email:</strong> admin@learnpro.com</p>
-                <p><strong>Contraseña:</strong> admin123</p>
-              </div>
-            </div>
-
-            {/* Back to main site */}
-            <div className="mt-6 text-center">
-              <Link 
-                to="/" 
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                ← Volver al sitio principal
-              </Link>
-            </div>
+  // Si está cargando, mostrar estado de carga
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="flex flex-col items-center justify-center p-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
+            <p className="text-gray-600">Verificando credenciales...</p>
           </CardContent>
         </Card>
-
-        {/* Security Notice */}
-        <div className="mt-6 text-center text-xs text-muted-foreground">
-          <p>🔒 Este es un área segura. Todas las acciones son registradas.</p>
-        </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="space-y-1">
+          <div className="flex items-center justify-center mb-4">
+            <div className="bg-blue-600 p-3 rounded-full">
+              <Shield className="h-6 w-6 text-white" />
+            </div>
+          </div>
+          <CardTitle className="text-2xl text-center">Admin Login</CardTitle>
+          <CardDescription className="text-center">
+            Accede al panel de administración
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="admin@ejemplo.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={isLoading}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Contraseña</Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={isLoading}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowPassword(!showPassword)}
+                  disabled={isLoading}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <div className="flex items-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Iniciando sesión...
+                </div>
+              ) : (
+                "Iniciar Sesión"
+              )}
+            </Button>
+          </form>
+          <div className="mt-6 text-center">
+            <Link
+              to="/login"
+              className="text-sm text-blue-600 hover:underline"
+            >
+              ¿No eres admin? Acceso normal
+            </Link>
+          </div>
+          {/* Debug info en desarrollo */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+              <h4 className="text-sm font-medium text-gray-900 mb-2">Debug Info:</h4>
+              <div className="text-xs text-gray-600 space-y-1">
+                <p>User: {user?.email || 'No user'}</p>
+                <p>Profile Role: {profile?.role || 'No profile'}</p>
+                <p>Loading: {loading ? 'Yes' : 'No'}</p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };

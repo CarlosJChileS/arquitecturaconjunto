@@ -34,6 +34,7 @@ interface AuthContextType {
   updateProfile: (updates: Partial<Profile>) => Promise<{ error: any }>;
   refreshProfile: () => Promise<void>;
   refreshSubscription: () => Promise<void>;
+  ensureAdminProfile: () => Promise<void>;
   isAdmin: boolean;
   isInstructor: boolean;
   isStudent: boolean;
@@ -42,6 +43,8 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export { AuthContext };
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -68,50 +71,136 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchProfile = async (userId: string) => {
     try {
+      console.log('=== FETCH PROFILE START ===');
       console.log('Fetching profile for userId:', userId);
-      const { data, error } = await supabase
+      
+      // Agregar timeout para la consulta
+      const profilePromise = supabase
         .from('profiles')
         .select('*')
         .eq('user_id', userId)
         .single();
 
+      // Timeout de 10 segundos
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Profile fetch timeout')), 10000)
+      );
+
+      console.log('Starting Supabase query...');
+      const { data, error } = await Promise.race([profilePromise, timeoutPromise]) as any;
+      console.log('Supabase query completed');
+
+      console.log('Raw Supabase response:', { data, error });
+
       if (error) {
         console.error('Error fetching profile:', error);
+        console.log('Error code:', error.code);
+        console.log('Error message:', error.message);
+        console.log('Error details:', error.details);
+        console.log('Error hint:', error.hint);
+        
         // Si no existe el perfil, crear uno por defecto
         if (error.code === 'PGRST116') {
-          console.log('Profile not found, creating default profile');
+          console.log('Profile not found (PGRST116), creating default profile');
           const { data: userData } = await supabase.auth.getUser();
           const userEmail = userData?.user?.email;
+          console.log('Current user email for profile creation:', userEmail);
+          
+          // Si es el admin conocido, crear perfil de admin
+          const isAdminUser = userEmail === 'carlosjchiles@gmail.com' || userEmail === 'admin@learnpro.com';
+          console.log('Is admin user?', isAdminUser);
+          
+          const profileData = {
+            user_id: userId,
+            full_name: isAdminUser ? 'Carlos J. Chile S.' : (userEmail?.split('@')[0] || 'Usuario'),
+            role: isAdminUser ? 'admin' : 'student',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+          
+          console.log('Creating profile with data:', profileData);
           
           const { data: newProfile, error: createError } = await supabase
             .from('profiles')
-            .insert({
-              user_id: userId,
-              full_name: userEmail?.split('@')[0] || 'Usuario',
-              role: 'student',
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            })
+            .insert(profileData)
             .select()
             .single();
             
+          console.log('Profile creation result:', { newProfile, createError });
+            
           if (createError) {
             console.error('Error creating profile:', createError);
+            console.error('Create error code:', createError.code);
+            console.error('Create error message:', createError.message);
+            console.error('Create error details:', createError.details);
             return;
           }
           
           setProfile(newProfile as Profile);
-          console.log('Profile created:', newProfile);
+          console.log('Profile created and set:', newProfile);
+          console.log('=== FETCH PROFILE END (CREATED) ===');
+          return;
+        } else {
+          // Para otros errores, intentar verificar si la tabla existe
+          console.log('Non-PGRST116 error, checking if profiles table exists...');
+          try {
+            const { data: tableData, error: tableError } = await supabase
+              .from('profiles')
+              .select('count')
+              .limit(1);
+            
+            console.log('Table check result:', { tableData, tableError });
+          } catch (tableCheckError) {
+            console.error('Table check failed:', tableCheckError);
+          }
         }
+        console.log('=== FETCH PROFILE END (ERROR) ===');
         return;
       }
 
       // Type assertion to ensure role matches our UserRole type
       const profileData = data as Profile;
       setProfile(profileData);
-      console.log('Profile loaded:', profileData);
+      console.log('Profile loaded successfully:', profileData);
+      console.log('=== FETCH PROFILE END (SUCCESS) ===');
     } catch (error) {
-      console.error('Error fetching profile:', error);
+      console.error('Unexpected error fetching profile:', error);
+      
+      if (error.message === 'Profile fetch timeout') {
+        console.error('Profile fetch timed out - possible Supabase connectivity issue');
+        
+        // Intentar crear el perfil directamente si es timeout y es el usuario admin
+        const { data: userData } = await supabase.auth.getUser();
+        if (userData?.user?.email === 'carlosjchiles@gmail.com') {
+          console.log('Timeout for admin user, attempting direct profile creation');
+          try {
+            const profileData = {
+              user_id: userId,
+              full_name: 'Carlos J. Chile S.',
+              role: 'admin',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            };
+            
+            const { data: newProfile, error: createError } = await supabase
+              .from('profiles')
+              .insert(profileData)
+              .select()
+              .single();
+              
+            if (!createError && newProfile) {
+              setProfile(newProfile as Profile);
+              console.log('Admin profile created after timeout:', newProfile);
+              console.log('=== FETCH PROFILE END (TIMEOUT RECOVERY) ===');
+              return;
+            }
+          } catch (recoveryError) {
+            console.error('Timeout recovery failed:', recoveryError);
+          }
+        }
+      }
+      
+      console.log('=== FETCH PROFILE END (EXCEPTION) ===');
     }
   };
 
@@ -161,20 +250,94 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const ensureAdminProfile = async () => {
+    if (!user) return;
+    
+    try {
+      console.log('Ensuring admin profile for user:', user.email);
+      
+      // Verificar si ya existe el perfil
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+      
+      if (existingProfile) {
+        // Si existe pero no es admin, actualizarlo
+        if (existingProfile.role !== 'admin') {
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update({
+              role: 'admin',
+              full_name: 'Carlos J. Chile S.',
+              updated_at: new Date().toISOString()
+            })
+            .eq('user_id', user.id);
+          
+          if (!updateError) {
+            setProfile({ ...(existingProfile as Profile), role: 'admin', full_name: 'Carlos J. Chile S.' });
+            console.log('Profile updated to admin');
+          }
+        } else {
+          setProfile(existingProfile as Profile);
+          console.log('Admin profile already exists');
+        }
+      } else {
+        // Crear nuevo perfil de admin
+        const { data: newProfile, error: createError } = await supabase
+          .from('profiles')
+          .insert({
+            user_id: user.id,
+            full_name: 'Carlos J. Chile S.',
+            role: 'admin',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+        
+        if (!createError && newProfile) {
+          setProfile(newProfile as Profile);
+          console.log('Admin profile created');
+        }
+      }
+    } catch (error) {
+      console.error('Error ensuring admin profile:', error);
+    }
+  };
+
   useEffect(() => {
+    let isLoggingOut = false;
+    
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', event, session?.user?.email);
-        setSession(session);
-        setUser(session?.user ?? null);
         
-        if (session?.user) {
+        // If we're in the middle of a logout process, don't restore the session
+        if (event === 'SIGNED_OUT') {
+          console.log('User signed out, clearing all state');
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setSubscription(null);
+          setLoading(false);
+          return;
+        }
+        
+        if (event === 'SIGNED_IN' && session?.user) {
+          console.log('User signed in, setting up session');
+          setSession(session);
+          setUser(session.user);
+          
           // Fetch profile and subscription data after authentication
           console.log('Fetching profile for user:', session.user.id);
           await fetchProfile(session.user.id);
           await fetchSubscription(session.user.id);
-        } else {
+        } else if (!session) {
+          setSession(null);
+          setUser(null);
           setProfile(null);
           setSubscription(null);
         }
@@ -240,15 +403,72 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (!error) {
+    try {
+      console.log('Starting sign out process...');
+      
+      // Clear state immediately to prevent UI issues
       setUser(null);
       setSession(null);
       setProfile(null);
+      setSubscription(null);
+      
+      console.log('Local state cleared, calling Supabase signOut...');
+      
+      // Sign out from all sessions (more aggressive)
+      const { error } = await supabase.auth.signOut({ scope: 'global' });
+      
+      if (error) {
+        console.error('Supabase signOut error:', error);
+        // Even with error, continue with cleanup
+      }
+      
+      console.log('Supabase sign out called');
+      
+      // Clear ALL localStorage items related to auth
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key?.includes('supabase')) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+      
+      // Also clear sessionStorage
+      sessionStorage.clear();
+      
+      console.log('Storage cleared');
+      
       toast({
         title: "Sesión cerrada",
         description: "Has cerrado sesión correctamente.",
       });
+      
+      console.log('Redirecting to home page...');
+      
+      // Force reload the entire page to clear any remaining state
+      window.location.replace('/');
+      
+    } catch (error) {
+      console.error('Unexpected error during sign out:', error);
+      
+      // Even if there's an error, clear everything and redirect
+      setUser(null);
+      setSession(null);
+      setProfile(null);
+      setSubscription(null);
+      
+      // Clear all storage
+      localStorage.clear();
+      sessionStorage.clear();
+      
+      toast({
+        title: "Sesión cerrada",
+        description: "Sesión cerrada (forzada).",
+      });
+      
+      // Force reload
+      window.location.replace('/');
     }
   };
 
@@ -282,6 +502,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     updateProfile,
     refreshProfile,
     refreshSubscription,
+    ensureAdminProfile,
     isAdmin,
     isInstructor,
     isStudent,

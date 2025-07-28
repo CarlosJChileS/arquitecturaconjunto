@@ -1,17 +1,26 @@
 import { Button } from "@/components/ui/button";
 import { GraduationCap, Menu, Search, User, LogOut } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const { user, profile, signOut } = useAuth();
-  const navigate = useNavigate();
 
   const handleLogout = async () => {
-    await signOut();
-    navigate("/");
+    if (isLoggingOut) return; // Prevent multiple clicks
+    
+    setIsLoggingOut(true);
+    try {
+      await signOut();
+      // The signOut function already handles navigation
+    } catch (error) {
+      console.error('Error during logout:', error);
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
 
   return (
@@ -78,10 +87,11 @@ const Header = () => {
                   variant="outline" 
                   size="sm" 
                   onClick={handleLogout}
+                  disabled={isLoggingOut}
                   className="flex items-center space-x-2"
                 >
                   <LogOut className="h-4 w-4" />
-                  <span>Salir</span>
+                  <span>{isLoggingOut ? 'Cerrando...' : 'Salir'}</span>
                 </Button>
               </div>
             ) : (
@@ -191,10 +201,11 @@ const Header = () => {
                     handleLogout();
                     setIsMenuOpen(false);
                   }}
+                  disabled={isLoggingOut}
                   className="w-full flex items-center justify-center space-x-2"
                 >
                   <LogOut className="h-4 w-4" />
-                  <span>Salir</span>
+                  <span>{isLoggingOut ? 'Cerrando...' : 'Salir'}</span>
                 </Button>
               )}
             </nav>

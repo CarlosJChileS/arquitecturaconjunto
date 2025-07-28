@@ -1,7 +1,6 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from './AuthContext';
-import { useToast } from '@/hooks/use-toast';
+import { AuthContext } from './AuthContext';
 
 interface SubscriptionData {
   subscribed: boolean;
@@ -29,8 +28,7 @@ export const useSubscription = () => {
 };
 
 export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, session } = useAuth();
-  const { toast } = useToast();
+  // Primero, todos los hooks (obligatorio para las reglas de React)
   const [subscription, setSubscription] = useState<SubscriptionData>({
     subscribed: false,
     subscription_tier: null,
@@ -38,6 +36,12 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     plan_id: null,
   });
   const [loading, setLoading] = useState(false);
+  
+  // Ahora verificar el AuthContext
+  const authContext = useContext(AuthContext);
+  
+  // Usar valores por defecto si AuthContext no está disponible
+  const session = authContext?.session || null;
 
   const refreshSubscription = async () => {
     if (!session) return;
@@ -132,13 +136,13 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   }, [session]);
 
-  const value: SubscriptionContextType = {
+  const value: SubscriptionContextType = useMemo(() => ({
     subscription,
     loading,
     refreshSubscription,
     createCheckoutSession,
     createCustomerPortalSession,
-  };
+  }), [subscription, loading]);
 
   return (
     <SubscriptionContext.Provider value={value}>
