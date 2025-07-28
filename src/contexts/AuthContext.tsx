@@ -70,10 +70,64 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     new Date(subscription.subscription_end) > new Date();
 
   const fetchProfile = async (userId: string) => {
+    // Obtener información del usuario una vez al principio
+    const { data: userData } = await supabase.auth.getUser();
+    const userEmail = userData?.user?.email;
+    
     try {
       console.log('=== FETCH PROFILE START ===');
       console.log('Fetching profile for userId:', userId);
       
+      // Verificar si es el usuario admin conocido y crear perfil inmediatamente si es necesario
+      const isKnownAdmin = userEmail === 'carlosjchiles@gmail.com' || userEmail === 'admin@learnpro.com';
+      
+      if (isKnownAdmin) {
+        console.log('Known admin user detected, fast-tracking profile creation/fetch');
+        
+        // Intentar obtener perfil existente primero
+        try {
+          const { data: existingProfile, error: fetchError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('user_id', userId)
+            .single();
+            
+          if (existingProfile && !fetchError) {
+            console.log('Existing admin profile found:', existingProfile);
+            setProfile(existingProfile as Profile);
+            console.log('=== FETCH PROFILE END (EXISTING ADMIN) ===');
+            return;
+          }
+        } catch (fetchErr) {
+          console.log('No existing profile found for admin, will create new one');
+        }
+        
+        // Si no existe, crear perfil de admin inmediatamente
+        const adminProfileData = {
+          user_id: userId,
+          full_name: 'Carlos J. Chile S.',
+          role: 'admin',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        
+        const { data: newAdminProfile, error: createError } = await supabase
+          .from('profiles')
+          .insert(adminProfileData)
+          .select()
+          .single();
+          
+        if (!createError && newAdminProfile) {
+          setProfile(newAdminProfile as Profile);
+          console.log('Admin profile created successfully:', newAdminProfile);
+          console.log('=== FETCH PROFILE END (ADMIN CREATED) ===');
+          return;
+        } else {
+          console.error('Failed to create admin profile, falling back to regular flow');
+        }
+      }
+      
+      // Flujo regular para otros usuarios
       // Agregar timeout para la consulta
       const profilePromise = supabase
         .from('profiles')
@@ -81,9 +135,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('user_id', userId)
         .single();
 
-      // Timeout de 10 segundos
+      // Timeout reducido a 5 segundos para respuesta más rápida
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Profile fetch timeout')), 10000)
+        setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
       );
 
       console.log('Starting Supabase query...');
@@ -102,8 +156,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Si no existe el perfil, crear uno por defecto
         if (error.code === 'PGRST116') {
           console.log('Profile not found (PGRST116), creating default profile');
-          const { data: userData } = await supabase.auth.getUser();
-          const userEmail = userData?.user?.email;
           console.log('Current user email for profile creation:', userEmail);
           
           // Si es el admin conocido, crear perfil de admin
@@ -170,7 +222,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('Profile fetch timed out - possible Supabase connectivity issue');
         
         // Intentar crear el perfil directamente si es timeout y es el usuario admin
-        const { data: userData } = await supabase.auth.getUser();
         if (userData?.user?.email === 'carlosjchiles@gmail.com') {
           console.log('Timeout for admin user, attempting direct profile creation');
           try {
@@ -198,6 +249,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             console.error('Timeout recovery failed:', recoveryError);
           }
         }
+        
+        // Si es timeout, crear un perfil temporal en memoria para permitir continuar
+        console.log('Creating temporary profile for timeout scenario');
+        const tempProfile: Profile = {
+          id: `temp-${userId}`,
+          user_id: userId,
+          full_name: userData?.user?.email === 'carlosjchiles@gmail.com' ? 'Carlos J. Chile S.' : (userData?.user?.email?.split('@')[0] || 'Usuario'),
+          email: userData?.user?.email || null,
+          avatar_url: null,
+          role: userData?.user?.email === 'carlosjchiles@gmail.com' ? 'admin' : 'student',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        setProfile(tempProfile);
+        console.log('Temporary profile set:', tempProfile);
       }
       
       console.log('=== FETCH PROFILE END (EXCEPTION) ===');
@@ -212,8 +278,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('user_id', userId)
         .single();
 
-      if (error && error.code !== 'PGRST116') { // Not found is OK
-        console.error('Error fetching subscription:', error);
+      if (error) {
+        // Si es 'Not found' (PGRST116), está bien - usuario sin suscripción
+        if (error.code === 'PGRST116') {
+          console.log('No subscription found for user, setting default');
+        } else {
+          console.error('Error fetching subscription:', error);
+          console.log('Error code:', error.code);
+          console.log('Error message:', error.message);
+          
+          // Si es error 406 o similar (tabla no existe), crear suscripción por defecto
+          if (error.code === 'PGRST204' || error.message.includes('406') || error.message.includes('Not Acceptable')) {
+            console.log('Subscription table may not exist, setting default subscription');
+          }
+        }
+        
+        // Establecer suscripción por defecto en caso de cualquier error
+        setSubscription({
+          user_id: userId,
+          subscribed: false,
+          subscription_tier: null,
+          subscription_end: null
+        });
         return;
       }
 
@@ -234,7 +320,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       }
     } catch (error) {
-      console.error('Error fetching subscription:', error);
+      console.error('Unexpected error fetching subscription:', error);
+      // Establecer suscripción por defecto en caso de error inesperado
+      setSubscription({
+        user_id: userId,
+        subscribed: false,
+        subscription_tier: null,
+        subscription_end: null
+      });
     }
   };
 
@@ -333,16 +426,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           // Fetch profile and subscription data after authentication
           console.log('Fetching profile for user:', session.user.id);
-          await fetchProfile(session.user.id);
-          await fetchSubscription(session.user.id);
+          try {
+            await fetchProfile(session.user.id);
+            await fetchSubscription(session.user.id);
+          } catch (error) {
+            console.error('Error fetching user data after sign in:', error);
+          } finally {
+            // Asegurar que loading se establezca en false incluso si hay errores
+            setLoading(false);
+          }
         } else if (!session) {
           setSession(null);
           setUser(null);
           setProfile(null);
           setSubscription(null);
+          setLoading(false);
+        } else {
+          setLoading(false);
         }
-        
-        setLoading(false);
       }
     );
 
@@ -354,8 +455,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (session?.user) {
         console.log('Loading profile for existing session:', session.user.id);
-        await fetchProfile(session.user.id);
-        await fetchSubscription(session.user.id);
+        try {
+          await fetchProfile(session.user.id);
+          await fetchSubscription(session.user.id);
+        } catch (error) {
+          console.error('Error fetching user data for existing session:', error);
+        }
       }
       
       setLoading(false);

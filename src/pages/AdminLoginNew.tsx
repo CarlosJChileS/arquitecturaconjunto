@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Eye, EyeOff, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,24 @@ const AdminLogin = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { signIn } = useAuth();
+  const { signIn, user, profile, loading } = useAuth();
+
+  useEffect(() => {
+    // Si ya está logueado y tiene perfil cargado
+    if (user && profile && !loading) {
+      if (profile.role === 'admin') {
+        console.log('Usuario admin autenticado, redirigiendo al dashboard');
+        navigate("/admin", { replace: true });
+      } else {
+        console.log('Usuario logueado pero no es admin, rol:', profile.role);
+        toast({
+          title: "Acceso denegado",
+          description: "No tienes permisos de administrador",
+          variant: "destructive"
+        });
+      }
+    }
+  }, [user, profile, loading, navigate, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,20 +61,10 @@ const AdminLogin = () => {
         return;
       }
 
-      // Si el login es exitoso y es el email admin, ir directo al dashboard
-      if (email === 'carlosjchiles@gmail.com' || email === 'admin@learnpro.com') {
-        toast({
-          title: "¡Bienvenido Admin!",
-          description: "Accediendo al panel de administración...",
-        });
-        navigate("/admin", { replace: true });
-      } else {
-        toast({
-          title: "Acceso denegado",
-          description: "No tienes permisos de administrador",
-          variant: "destructive"
-        });
-      }
+      toast({
+        title: "Autenticación exitosa",
+        description: "Verificando permisos de administrador...",
+      });
 
     } catch (error) {
       console.error('Unexpected error:', error);
@@ -71,14 +78,14 @@ const AdminLogin = () => {
     }
   };
 
-  // Pantalla de carga simple solo durante el submit
-  if (isLoading) {
+  // Si está cargando, mostrar estado de carga
+  if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardContent className="flex flex-col items-center justify-center p-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
-            <p className="text-gray-600">Iniciando sesión...</p>
+            <p className="text-gray-600">Verificando credenciales...</p>
           </CardContent>
         </Card>
       </div>
@@ -164,13 +171,14 @@ const AdminLogin = () => {
               ¿No eres admin? Acceso normal
             </Link>
           </div>
-          {/* Debug info simple */}
+          {/* Debug info en desarrollo */}
           {process.env.NODE_ENV === 'development' && (
             <div className="mt-6 p-4 bg-gray-50 rounded-lg">
               <h4 className="text-sm font-medium text-gray-900 mb-2">Debug Info:</h4>
               <div className="text-xs text-gray-600 space-y-1">
-                <p>Current email: {email || 'None'}</p>
-                <p>Is Loading: {isLoading ? 'Yes' : 'No'}</p>
+                <p>User: {user?.email || 'No user'}</p>
+                <p>Profile Role: {profile?.role || 'No profile'}</p>
+                <p>Loading: {loading ? 'Yes' : 'No'}</p>
               </div>
             </div>
           )}
