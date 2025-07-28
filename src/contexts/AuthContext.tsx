@@ -77,195 +77,74 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('=== FETCH PROFILE START ===');
       console.log('Fetching profile for userId:', userId);
+      console.log('User email:', userEmail);
       
-      // Verificar si es el usuario admin conocido y crear perfil inmediatamente si es necesario
-      const isKnownAdmin = userEmail === 'carlosjchiles@gmail.com' || userEmail === 'admin@learnpro.com';
-      
-      if (isKnownAdmin) {
-        console.log('Known admin user detected, fast-tracking profile creation/fetch');
-        
-        // Intentar obtener perfil existente primero
-        try {
-          const { data: existingProfile, error: fetchError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('user_id', userId)
-            .single();
-            
-          if (existingProfile && !fetchError) {
-            console.log('Existing admin profile found:', existingProfile);
-            setProfile(existingProfile as Profile);
-            console.log('=== FETCH PROFILE END (EXISTING ADMIN) ===');
-            return;
-          }
-        } catch (fetchErr) {
-          console.log('No existing profile found for admin, will create new one');
-        }
-        
-        // Si no existe, crear perfil de admin inmediatamente
-        const adminProfileData = {
-          user_id: userId,
-          full_name: 'Carlos J. Chile S.',
-          role: 'admin',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-        
-        const { data: newAdminProfile, error: createError } = await supabase
-          .from('profiles')
-          .insert(adminProfileData)
-          .select()
-          .single();
-          
-        if (!createError && newAdminProfile) {
-          setProfile(newAdminProfile as Profile);
-          console.log('Admin profile created successfully:', newAdminProfile);
-          console.log('=== FETCH PROFILE END (ADMIN CREATED) ===');
-          return;
-        } else {
-          console.error('Failed to create admin profile, falling back to regular flow');
-        }
-      }
-      
-      // Flujo regular para otros usuarios
-      // Agregar timeout para la consulta
-      const profilePromise = supabase
+      // Intentar obtener perfil existente primero (para cualquier usuario)
+      const { data: existingProfile, error: fetchError } = await supabase
         .from('profiles')
         .select('*')
         .eq('user_id', userId)
         .single();
-
-      // Timeout reducido a 5 segundos para respuesta más rápida
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
-      );
-
-      console.log('Starting Supabase query...');
-      const { data, error } = await Promise.race([profilePromise, timeoutPromise]) as any;
-      console.log('Supabase query completed');
-
-      console.log('Raw Supabase response:', { data, error });
-
-      if (error) {
-        console.error('Error fetching profile:', error);
-        console.log('Error code:', error.code);
-        console.log('Error message:', error.message);
-        console.log('Error details:', error.details);
-        console.log('Error hint:', error.hint);
         
-        // Si no existe el perfil, crear uno por defecto
-        if (error.code === 'PGRST116') {
-          console.log('Profile not found (PGRST116), creating default profile');
-          console.log('Current user email for profile creation:', userEmail);
-          
-          // Si es el admin conocido, crear perfil de admin
-          const isAdminUser = userEmail === 'carlosjchiles@gmail.com' || userEmail === 'admin@learnpro.com';
-          console.log('Is admin user?', isAdminUser);
-          
-          const profileData = {
-            user_id: userId,
-            full_name: isAdminUser ? 'Carlos J. Chile S.' : (userEmail?.split('@')[0] || 'Usuario'),
-            role: isAdminUser ? 'admin' : 'student',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          };
-          
-          console.log('Creating profile with data:', profileData);
-          
-          const { data: newProfile, error: createError } = await supabase
-            .from('profiles')
-            .insert(profileData)
-            .select()
-            .single();
-            
-          console.log('Profile creation result:', { newProfile, createError });
-            
-          if (createError) {
-            console.error('Error creating profile:', createError);
-            console.error('Create error code:', createError.code);
-            console.error('Create error message:', createError.message);
-            console.error('Create error details:', createError.details);
-            return;
-          }
-          
-          setProfile(newProfile as Profile);
-          console.log('Profile created and set:', newProfile);
-          console.log('=== FETCH PROFILE END (CREATED) ===');
-          return;
-        } else {
-          // Para otros errores, intentar verificar si la tabla existe
-          console.log('Non-PGRST116 error, checking if profiles table exists...');
-          try {
-            const { data: tableData, error: tableError } = await supabase
-              .from('profiles')
-              .select('count')
-              .limit(1);
-            
-            console.log('Table check result:', { tableData, tableError });
-          } catch (tableCheckError) {
-            console.error('Table check failed:', tableCheckError);
-          }
-        }
-        console.log('=== FETCH PROFILE END (ERROR) ===');
+      if (existingProfile && !fetchError) {
+        console.log('Existing profile found:', existingProfile);
+        setProfile(existingProfile as Profile);
+        console.log('=== FETCH PROFILE END (EXISTING) ===');
         return;
       }
-
-      // Type assertion to ensure role matches our UserRole type
-      const profileData = data as Profile;
-      setProfile(profileData);
-      console.log('Profile loaded successfully:', profileData);
-      console.log('=== FETCH PROFILE END (SUCCESS) ===');
-    } catch (error) {
-      console.error('Unexpected error fetching profile:', error);
       
-      if (error.message === 'Profile fetch timeout') {
-        console.error('Profile fetch timed out - possible Supabase connectivity issue');
+      console.log('No existing profile found, will create new one');
+      console.log('Fetch error details:', fetchError);
+      
+      // Si no existe el perfil, crear uno por defecto
+      if (fetchError && fetchError.code === 'PGRST116') {
+        console.log('Profile not found (PGRST116), creating default profile');
+        console.log('Current user email for profile creation:', userEmail);
         
-        // Intentar crear el perfil directamente si es timeout y es el usuario admin
-        if (userData?.user?.email === 'carlosjchiles@gmail.com') {
-          console.log('Timeout for admin user, attempting direct profile creation');
-          try {
-            const profileData = {
-              user_id: userId,
-              full_name: 'Carlos J. Chile S.',
-              role: 'admin',
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            };
-            
-            const { data: newProfile, error: createError } = await supabase
-              .from('profiles')
-              .insert(profileData)
-              .select()
-              .single();
-              
-            if (!createError && newProfile) {
-              setProfile(newProfile as Profile);
-              console.log('Admin profile created after timeout:', newProfile);
-              console.log('=== FETCH PROFILE END (TIMEOUT RECOVERY) ===');
-              return;
-            }
-          } catch (recoveryError) {
-            console.error('Timeout recovery failed:', recoveryError);
-          }
-        }
+        // Determinar el rol basado en el email (solo carlosjchiles@gmail.com es admin)
+        const isAdminUser = userEmail === 'carlosjchiles@gmail.com' || 
+                           userEmail === 'admin@learnpro.com';
+        console.log('Is admin user?', isAdminUser);
         
-        // Si es timeout, crear un perfil temporal en memoria para permitir continuar
-        console.log('Creating temporary profile for timeout scenario');
-        const tempProfile: Profile = {
-          id: `temp-${userId}`,
+        const profileData = {
           user_id: userId,
-          full_name: userData?.user?.email === 'carlosjchiles@gmail.com' ? 'Carlos J. Chile S.' : (userData?.user?.email?.split('@')[0] || 'Usuario'),
-          email: userData?.user?.email || null,
-          avatar_url: null,
-          role: userData?.user?.email === 'carlosjchiles@gmail.com' ? 'admin' : 'student',
+          full_name: isAdminUser ? 'Carlos J. Chile S.' : (userEmail?.split('@')[0] || 'Usuario'),
+          role: isAdminUser ? 'admin' : 'student',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         };
-        setProfile(tempProfile);
-        console.log('Temporary profile set:', tempProfile);
+        
+        console.log('Creating profile with data:', profileData);
+        
+        const { data: newProfile, error: createError } = await supabase
+          .from('profiles')
+          .insert(profileData)
+          .select()
+          .single();
+          
+        console.log('Profile creation result:', { newProfile, createError });
+          
+        if (createError) {
+          console.error('Error creating profile:', createError);
+          console.error('Create error code:', createError.code);
+          console.error('Create error message:', createError.message);
+          console.error('Create error details:', createError.details);
+          return;
+        }
+        
+        setProfile(newProfile as Profile);
+        console.log('Profile created and set:', newProfile);
+        console.log('=== FETCH PROFILE END (CREATED) ===');
+        return;
+      } else {
+        // Para otros errores, log adicional
+        console.error('Unexpected error fetching profile:', fetchError);
+        console.log('=== FETCH PROFILE END (ERROR) ===');
+        return;
       }
       
+    } catch (error) {
+      console.error('Unexpected error in fetchProfile:', error);
       console.log('=== FETCH PROFILE END (EXCEPTION) ===');
     }
   };
